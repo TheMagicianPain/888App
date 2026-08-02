@@ -1,0 +1,838 @@
+import { useState, useRef, useEffect } from "react";
+import { Sparkles, ArrowRight, Loader2, Play, Square, Volume2, Download } from "lucide-react";
+
+const MAJOR = [
+  { n: "The Fool", k: "The blank slate — no fixed identity, free to become anything." },
+  { n: "The Magician", k: "Alpha and Omega — mastering reality by mastering the inner state." },
+  { n: "The High Priestess", k: "Intuition made real — the gate between the hidden and the seen." },
+  { n: "The Empress", k: "Abundance embodied — creation flowing without scarcity." },
+  { n: "The Emperor", k: "Natural leadership — discipline and command over the self." },
+  { n: "The Hierophant", k: "The teacher — leading by example, speaking your truth loudly." },
+  { n: "The Lovers", k: "Love as the primary tool — masculine and feminine in balance." },
+  { n: "The Chariot", k: "Unrelenting faith — persistence that makes anything possible." },
+  { n: "Strength", k: "Raw power, tamed — the primal force directed with love." },
+  { n: "The Hermit", k: "The turning point — solitude that integrates everything learned." },
+  { n: "Wheel of Fortune", k: "The breakthrough — control found by releasing the need for it." },
+  { n: "Justice", k: "Cause and effect — the balancing force, aligned with what's right." },
+  { n: "The Hanged Man", k: "Surrender — releasing control to something higher." },
+  { n: "Death", k: "Evolution — letting the old identity die so a new one can live." },
+  { n: "Temperance", k: "Moderation — the steady hand that masters the material world." },
+  { n: "The Devil", k: "Slavery to the material — spirit placed beneath what can be seen." },
+  { n: "The Tower", k: "Collapse of a false foundation — the call to rebuild on truth." },
+  { n: "The Star", k: "Shameless hope — your light raising others as it rises." },
+  { n: "The Moon", k: "Creativity and emotion — the feminine, where spirit begins." },
+  { n: "The Sun", k: "Pure action — the masculine force that brings vision into form." },
+  { n: "Judgement", k: "The higher calling — rebirth into who you're meant to be." },
+  { n: "The World", k: "Completion — in the world, but no longer bound by it." },
+];
+
+const SUITS = ["Wands", "Cups", "Swords", "Pentacles"];
+const RANKS = [
+  { r: "Ace", k: "a pure, unclaimed spark of new potential" },
+  { r: "Two", k: "a choice or balance point being weighed" },
+  { r: "Three", k: "early growth — the first real progress" },
+  { r: "Four", k: "a pause to consolidate what's been built" },
+  { r: "Five", k: "friction — conflict that's actually clarifying" },
+  { r: "Six", k: "a turning point toward harmony" },
+  { r: "Seven", k: "a test of patience and quiet resolve" },
+  { r: "Eight", k: "movement — real momentum picking up speed" },
+  { r: "Nine", k: "nearing completion, close to the edge of it" },
+  { r: "Ten", k: "full completion — the cycle closing" },
+  { r: "Page", k: "a student's curiosity — new information arriving" },
+  { r: "Knight", k: "bold, single-minded pursuit of one goal" },
+  { r: "Queen", k: "mastery held inwardly, felt more than performed" },
+  { r: "King", k: "mastery expressed outwardly, in full command" },
+];
+const SUIT_DOMAIN = {
+  Wands: "creative drive and will",
+  Cups: "emotion and connection",
+  Swords: "thought and truth",
+  Pentacles: "material reality and resources",
+};
+const MINOR = SUITS.flatMap((s) =>
+  RANKS.map((r) => ({
+    n: `${r.r} of ${s}`,
+    k: `${r.k}, in the domain of ${SUIT_DOMAIN[s]}`,
+  }))
+);
+
+function drawFrom(deck, count) {
+  const pool = [...deck];
+  const out = [];
+  for (let i = 0; i < count; i++) {
+    const idx = Math.floor(Math.random() * pool.length);
+    out.push(pool.splice(idx, 1)[0]);
+  }
+  return out;
+}
+
+const STEPS = [
+  { label: "Your Archetype", color: "#4dd8cc" },
+  { label: "What's Blocking You", color: "#e05a78" },
+  { label: "The Path Forward", color: "#2dd4bf" },
+  { label: "Who You Become", color: "#f5f6fa" },
+];
+
+const OATH = `I am ready to ascend. I release my old, lesser identity. I am ready to heal whatever curse still binds my spirit and my name.`;
+
+const CUSTOM_TONE_URL = "https://themagicianpain.github.io/432hz-tone/432%20Hz%20Bring%20Down%20Heart%20Rate.mp3";
+const ZAPIER_WEBHOOK_URL = "https://hooks.zapier.com/hooks/catch/28412006/46h2c0y/";
+
+function GlitterLayer({ count = 35 }) {
+  const [dots] = useState(() =>
+    Array.from({ length: count }, () => ({
+      left: Math.random() * 100,
+      top: Math.random() * 100,
+      size: Math.random() * 2.2 + 0.8,
+      delay: Math.random() * 4,
+      duration: Math.random() * 2.5 + 1.5,
+      teal: Math.random() > 0.35,
+    }))
+  );
+  return (
+    <div style={{ position: "absolute", inset: 0, overflow: "hidden", pointerEvents: "none" }}>
+      {dots.map((d, i) => (
+        <div
+          key={i}
+          style={{
+            position: "absolute",
+            left: `${d.left}%`,
+            top: `${d.top}%`,
+            width: d.size,
+            height: d.size,
+            borderRadius: "50%",
+            background: d.teal ? "#4dd8cc" : "#f5f6fa",
+            boxShadow: `0 0 ${d.size * 2.5}px ${d.teal ? "#4dd8cc" : "#f5f6fa"}`,
+            animation: `glimmer ${d.duration}s ease-in-out ${d.delay}s infinite`,
+          }}
+        />
+      ))}
+      <style>{`@keyframes glimmer { 0%,100% { opacity:0; transform:scale(0.4);} 50% { opacity:1; transform:scale(1.3);} }`}</style>
+    </div>
+  );
+}
+
+export default function TarotDraw() {
+  const [stage, setStage] = useState("intro");
+  const [goal, setGoal] = useState("");
+  const [hsv, setHsv] = useState({ vision: "" });
+  const [pairs, setPairs] = useState([]);
+  const [revealedSteps, setRevealedSteps] = useState(0);
+  const [pairSyntheses, setPairSyntheses] = useState([]);
+  const [synthLoading, setSynthLoading] = useState(false);
+  const [reading, setReading] = useState(null);
+  const [meditation, setMeditation] = useState(null);
+  const [meditationParts, setMeditationParts] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [unlocked, setUnlocked] = useState(false);
+  const [emailInput, setEmailInput] = useState("");
+  const [nameInput, setNameInput] = useState("");
+  const [oathChecked, setOathChecked] = useState(false);
+  const [savedCode, setSavedCode] = useState(null);
+  const [tonePlaying, setTonePlaying] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
+  const [voices, setVoices] = useState([]);
+  const [voiceIdx, setVoiceIdx] = useState(0);
+
+  useEffect(() => {
+    function loadVoices() {
+      const v = window.speechSynthesis ? window.speechSynthesis.getVoices() : [];
+      if (v.length) setVoices(v);
+    }
+    loadVoices();
+    if (window.speechSynthesis) {
+      window.speechSynthesis.onvoiceschanged = loadVoices;
+    }
+  }, []);
+
+  const audioCtxRef = useRef(null);
+  const oscRef = useRef(null);
+  const gainRef = useRef(null);
+  const audioElRef = useRef(null);
+  const speechTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get("m");
+    if (code) {
+      window.storage
+        .get(`meditation:${code}`, false)
+        .then((res) => {
+          if (res && res.value) {
+            const saved = JSON.parse(res.value);
+            setGoal(saved.goal);
+            setReading(saved.reading);
+            setMeditation(saved.meditation);
+            const parts = saved.meditation.split("\n\n");
+            setMeditationParts({
+              induction: parts[0] || "",
+              visualization: parts.slice(1, -1).join("\n\n") || "",
+              closing: parts[parts.length - 1] || "",
+            });
+            setSavedCode(code);
+            setUnlocked(true);
+            setStage("meditation");
+          }
+        })
+        .catch(() => {});
+    }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (oscRef.current) oscRef.current.stop();
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
+    };
+  }, []);
+
+  function startDraw(finalIdentity) {
+    setGoal(finalIdentity);
+    const majors = drawFrom(MAJOR, 2);
+    const minors = drawFrom(MINOR, 6);
+    const drawnPairs = [
+      [majors[0], minors[0]],
+      [minors[1], minors[2]],
+      [minors[3], minors[4]],
+      [majors[1], minors[5]],
+    ];
+    setPairs(drawnPairs);
+    setRevealedSteps(0);
+    setPairSyntheses([]);
+    setStage("drawing");
+  }
+
+  async function revealNextPair() {
+    if (revealedSteps < 4) {
+      const stepIdx = revealedSteps;
+      const pair = pairs[stepIdx];
+      setSynthLoading(true);
+      try {
+        const prompt = `Voice: "The Magician's Path" — esoteric identity-transformation brand, direct and warm, spiritually serious, not stiff.
+
+The identity someone wants to become: "${goal}"
+
+Two cards just drawn for the step "${STEPS[stepIdx].label}": ${pair[0].n} (${pair[0].k}) and ${pair[1].n} (${pair[1].k}).
+
+In 2-3 sentences, synthesize what these two cards mean TOGETHER for this specific person and their stated identity — not two separate meanings, one combined insight. Address them as "you". Plain text only, no JSON, no markdown, no preamble.`;
+        const response = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: "claude-sonnet-4-6",
+            max_tokens: 300,
+            messages: [{ role: "user", content: prompt }],
+          }),
+        });
+        const data = await response.json();
+        const text = data.content.map((b) => b.text || "").join("").trim();
+        setPairSyntheses((prev) => [...prev, text]);
+      } catch (e) {
+        setPairSyntheses((prev) => [...prev, ""]);
+      } finally {
+        setSynthLoading(false);
+        setRevealedSteps(stepIdx + 1);
+      }
+    } else {
+      generateReading(goal);
+    }
+  }
+
+  async function generateReading(identity) {
+    setLoading(true);
+    setError(null);
+    setStage("reading");
+    const cardList = pairs
+      .map((pair, i) => `${STEPS[i].label}: ${pair.map((c) => `${c.n} (${c.k})`).join(" + ")}`)
+      .join("\n");
+
+    const prompt = `You are writing in the voice of "The Magician's Path" — an esoteric identity-transformation brand built on tarot archetypes, chakra ascension through alchemy, and a framework of "Curses" (specific blocks like Identity Vacuum, Soul Bind, False Beliefs, Energy Leakage) that keep someone from full expression. Voice: direct, warm, confident, spiritually serious but not stiff.
+
+The identity the person wants to become: "${identity}"
+
+Four card pairs were drawn:
+${cardList}
+
+Respond ONLY with a JSON object, no markdown, no preamble:
+{
+  "reading": "A flowing personalized reading organized around the four steps in order (Your Archetype, What's Blocking You, The Path Forward, Who You Become), weaving both cards of each step together. In 'The Path Forward', tie the solution to healing the inner child and the alchemy of stepping into a higher identity. Address the reader as 'you'. About 220-260 words.",
+  "visualization": "The centerpiece of a guided visualization, second person, present tense, calm hypnotic pacing with natural pauses written as ellipses. Describe the person vividly embodying the identity '${identity}', informed by the Who You Become card pair (${pairs[3].map((c) => c.n).join(" and ")}). Have them: see this version of themselves clearly, take a deep breath and release all need or desire for a specific outcome, feel that reality settling into their bones, then turn and see their current, everyday self sitting nearby in meditation, walk toward that current self, watch it slowly fade away, and step into the space it occupied — becoming that higher identity fully. About 150-180 words. Do not include any counting, breathing instructions to open eyes, or session-closing language — that is handled separately."
+}`;
+
+    try {
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-6",
+          max_tokens: 1200,
+          messages: [{ role: "user", content: prompt }],
+        }),
+      });
+      const data = await response.json();
+      const text = data.content.map((b) => b.text || "").join("");
+      const clean = text.replace(/```json|```/g, "").trim();
+      const parsed = JSON.parse(clean);
+      setReading(parsed.reading);
+
+      const induction = `Before we begin — make sure you are not operating any machinery, and that you are seated safely in a quiet space.
+
+When you're ready, close your eyes.
+
+Take a slow breath in... and let it out.
+
+Now, count slowly to eight in your mind. With each number, feel your eyelids grow heavier... heavier... as if they are made of stone. By the time you reach eight, imagine they are so heavy you could not open them even if you tried. Test it now — try gently to open them, and feel just how heavy they have become.
+
+One... two... three... four... five... six... seven... eight.`;
+
+      const closing = `Now, count to eight once more. With each number, rise gently back into this moment — still holding everything you just became.
+
+One... two... three... four... five... six... seven... eight.
+
+Open your eyes. Take a deep breath.
+
+Repeat this practice daily, for the next eight days.`;
+
+      setMeditation(`${induction}\n\n${parsed.visualization}\n\n${closing}`);
+      setMeditationParts({ induction, visualization: parsed.visualization, closing });
+
+      const code = Math.random().toString(36).slice(2, 8);
+      try {
+        await window.storage.set(
+          `meditation:${code}`,
+          JSON.stringify({ goal, reading: parsed.reading, meditation: `${induction}\n\n${parsed.visualization}\n\n${closing}`, email: "" }),
+          false
+        );
+        setSavedCode(code);
+        const url = new URL(window.location.href);
+        url.searchParams.set("m", code);
+        window.history.replaceState({}, "", url);
+      } catch (e) {}
+    } catch (e) {
+      setError("The reading couldn't be generated. Try again in a moment.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function startTone() {
+    if (CUSTOM_TONE_URL) {
+      const audio = new Audio(CUSTOM_TONE_URL);
+      audio.loop = true;
+      audio.volume = 0;
+      audio.play();
+      let v = 0;
+      const fade = setInterval(() => {
+        v += 0.03;
+        audio.volume = Math.min(v, 0.6);
+        if (v >= 0.6) clearInterval(fade);
+      }, 80);
+      audioElRef.current = audio;
+      setTonePlaying(true);
+      return;
+    }
+    if (!audioCtxRef.current) {
+      audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    const ctx = audioCtxRef.current;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = "sine";
+    osc.frequency.value = 432;
+    gain.gain.setValueAtTime(0, ctx.currentTime);
+    gain.gain.linearRampToValueAtTime(0.035, ctx.currentTime + 2.5);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start();
+    oscRef.current = osc;
+    gainRef.current = gain;
+    setTonePlaying(true);
+  }
+
+  function stopTone() {
+    if (audioElRef.current) {
+      audioElRef.current.pause();
+      audioElRef.current = null;
+    }
+    if (oscRef.current) {
+      const ctx = audioCtxRef.current;
+      const gain = gainRef.current;
+      gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.6);
+      const osc = oscRef.current;
+      setTimeout(() => {
+        osc.stop();
+        osc.disconnect();
+      }, 650);
+      oscRef.current = null;
+    }
+    setTonePlaying(false);
+  }
+
+  function speakMeditation() {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+
+    const sections = meditation.split(/\n\n+/).filter((s) => s.trim());
+    let i = 0;
+
+    function speakNext() {
+      if (i >= sections.length) {
+        setSpeaking(false);
+        return;
+      }
+      const utter = new SpeechSynthesisUtterance(sections[i]);
+      if (voices[voiceIdx]) utter.voice = voices[voiceIdx];
+      utter.rate = 0.68;
+      utter.pitch = 0.92;
+      utter.onend = () => {
+        i += 1;
+        if (i < sections.length) {
+          speechTimeoutRef.current = setTimeout(speakNext, 2200);
+        } else {
+          setSpeaking(false);
+        }
+      };
+      window.speechSynthesis.speak(utter);
+    }
+
+    setSpeaking(true);
+    speakNext();
+  }
+
+  function stopSpeaking() {
+    if (speechTimeoutRef.current) {
+      clearTimeout(speechTimeoutRef.current);
+      speechTimeoutRef.current = null;
+    }
+    window.speechSynthesis.cancel();
+    setSpeaking(false);
+  }
+
+  async function confirmOathAndSave() {
+    if (savedCode) {
+      try {
+        await window.storage.set(
+          `meditation:${savedCode}`,
+          JSON.stringify({ goal, reading, meditation, email: emailInput, name: nameInput }),
+          false
+        );
+      } catch (e) {}
+    }
+    if (ZAPIER_WEBHOOK_URL) {
+      try {
+        await fetch(ZAPIER_WEBHOOK_URL, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: nameInput, email: emailInput, identity: goal, source: "tarot-draw" }),
+        });
+      } catch (e) {
+        // don't block the user's experience if this fails silently
+      }
+    }
+    setUnlocked(true);
+    setStage("meditation");
+  }
+
+  return (
+    <div
+      style={{
+        minHeight: "100vh",
+        background: "#2a0f18",
+        color: "#f5ebee",
+        fontFamily: "'EB Garamond', Georgia, serif",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        padding: "8vh 6vw",
+        position: "relative",
+      }}
+    >
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=EB+Garamond:ital,wght@0,500;0,600;1,400&display=swap');
+        .cinzel { font-family: 'Cinzel', serif; }
+        .glow-btn {
+          background: linear-gradient(135deg, #0a3d38, #2dd4bf);
+          color: #03110f;
+          border: 1px solid rgba(238,240,244,0.15);
+          padding: 1em 2.2em;
+          border-radius: 14px;
+          font-family: 'Cinzel', serif;
+          font-weight: 700;
+          font-size: 0.95rem;
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          cursor: pointer;
+          transition: filter 0.2s ease;
+        }
+        .glow-btn:hover { filter: brightness(1.12); }
+        .glow-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .ghost-btn {
+          background: transparent;
+          color: #e8cdd3;
+          border: 1px solid rgba(232,205,211,0.35);
+          padding: 0.9em 1.9em;
+          border-radius: 14px;
+          font-family: 'Cinzel', serif;
+          font-size: 0.88rem;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          cursor: pointer;
+        }
+        .field {
+          width: 100%;
+          background: #3a1620;
+          border: 1px solid rgba(232,205,211,0.3);
+          color: #f5ebee;
+          padding: 1em 1.1em;
+          border-radius: 12px;
+          font-family: 'EB Garamond', serif;
+          font-size: 1.15rem;
+        }
+        .pair-block {
+          border-radius: 12px;
+          padding: 1.3rem 1.4rem;
+          margin-bottom: 1rem;
+          animation: riseIn 0.5s ease;
+          text-align: left;
+        }
+        @keyframes riseIn { from { opacity:0; transform: translateY(10px);} to {opacity:1; transform:translateY(0);} }
+        @media (prefers-reduced-motion: reduce) { .pair-block { animation: none; } }
+        .audio-row { display:flex; gap:0.7rem; justify-content:center; margin-bottom:1.4rem; flex-wrap: wrap; }
+        .audio-btn {
+          display:flex; align-items:center; gap:0.4rem;
+          background:#3a1620; border:1px solid rgba(77,216,204,0.4);
+          color:#e8cdd3; padding:0.7em 1.2em; border-radius:24px;
+          font-family:'Cinzel',serif; font-size:0.78rem; letter-spacing:0.05em;
+          text-transform:uppercase; cursor:pointer;
+        }
+        p, li { font-size: 1.12rem; }
+      `}</style>
+
+      <GlitterLayer />
+
+      <div style={{ maxWidth: 560, width: "100%", textAlign: "center", position: "relative", zIndex: 1 }}>
+        <div className="cinzel" style={{ fontSize: "0.78rem", letterSpacing: "0.28em", color: "#4dd8cc", textTransform: "uppercase", marginBottom: "1.2rem" }}>
+          The Magician's Path
+        </div>
+
+        {stage === "intro" && (
+          <>
+            <h1 className="cinzel" style={{ fontSize: "2.1rem", marginBottom: "1.2rem" }}>
+              The Draw
+            </h1>
+            <p style={{ color: "#e8cdd3", fontStyle: "italic", marginBottom: "1.2rem", lineHeight: 1.6 }}>
+              We're going to do a tarot read together, gently, to help you see your
+              true identity clearly — and what's been quietly standing between you
+              and it.
+            </p>
+            <p style={{ color: "#e8cdd3", marginBottom: "2rem", lineHeight: 1.6 }}>
+              Afterward, you'll receive a free guided meditation to lovingly begin
+              the alchemy — the identity transformation into the Magician, your
+              fully embodied higher self — plus the full beginner's guide to the
+              Magician's Path.
+            </p>
+            <button className="glow-btn" onClick={() => setStage("goal")}>
+              Begin <ArrowRight size={16} style={{ verticalAlign: "middle", marginLeft: 6 }} />
+            </button>
+          </>
+        )}
+
+        {stage === "goal" && (
+          <>
+            <h2 className="cinzel" style={{ fontSize: "1.5rem", marginBottom: "1.4rem" }}>
+              Who Are You At Your Highest Potential?
+            </h2>
+            <p style={{ color: "#e8cdd3", fontStyle: "italic", marginBottom: "1.4rem", lineHeight: 1.6 }}>
+              Not a goal. Not an outcome. <strong style={{ color: "#f5ebee" }}>Let your imagination run free.</strong>{" "}
+              <strong style={{ color: "#f5ebee" }}>You are worthy, deserving, powerful, and capable of anything.</strong>
+            </p>
+            <textarea
+              className="field"
+              rows={4}
+              placeholder="Describe that identity — how they think, carry themselves, move through the world..."
+              value={goal}
+              onChange={(e) => setGoal(e.target.value)}
+              style={{ marginBottom: "1.2rem" }}
+            />
+            <div style={{ display: "flex", gap: "0.8rem", justifyContent: "center", flexWrap: "wrap" }}>
+              <button className="glow-btn" disabled={!goal.trim()} onClick={() => startDraw(goal)}>
+                Draw My Cards
+              </button>
+              <button className="ghost-btn" onClick={() => setStage("hsv1")}>
+                I'm not sure yet
+              </button>
+            </div>
+          </>
+        )}
+
+        {stage === "hsv1" && (
+          <>
+            <h2 className="cinzel" style={{ fontSize: "1.4rem", marginBottom: "1.2rem", lineHeight: 1.5 }}>
+              That's okay. Close your eyes, and gently imagine who you'd be at
+              your highest potential — with as few limitations as possible.
+            </h2>
+            <p style={{ color: "#e8cdd3", fontStyle: "italic", marginBottom: "1.4rem" }}>
+              Now keep expanding it. Bigger. Freer. Push it until it feels almost
+              unbelievable. When you have it, describe who that person is below.
+            </p>
+            <textarea
+              className="field"
+              rows={4}
+              placeholder="Who are they? How do they think, carry themselves, move through the world?"
+              value={hsv.vision}
+              onChange={(e) => setHsv({ ...hsv, vision: e.target.value })}
+              style={{ marginBottom: "1.2rem" }}
+            />
+            <button className="glow-btn" disabled={!hsv.vision.trim()} onClick={() => setStage("hsv2")}>
+              Continue
+            </button>
+          </>
+        )}
+
+        {stage === "hsv2" && (
+          <>
+            <h2 className="cinzel" style={{ fontSize: "1.4rem", marginBottom: "1.6rem" }}>
+              Take a moment. Is becoming that person worth it, to you?
+            </h2>
+            <div style={{ display: "flex", gap: "0.8rem", justifyContent: "center" }}>
+              <button className="glow-btn" onClick={() => setStage("hsv3")}>Yes</button>
+              <button className="ghost-btn" onClick={() => setStage("goal")}>Let me rethink it</button>
+            </div>
+          </>
+        )}
+
+        {stage === "hsv3" && (
+          <>
+            <h2 className="cinzel" style={{ fontSize: "1.4rem", marginBottom: "1.6rem" }}>
+              Would you like to start moving toward becoming them?
+            </h2>
+            <div style={{ display: "flex", gap: "0.8rem", justifyContent: "center" }}>
+              <button className="glow-btn" onClick={() => startDraw(hsv.vision)}>
+                Yes — Draw My Cards
+              </button>
+            </div>
+          </>
+        )}
+
+        {stage === "drawing" && (
+          <>
+            <h2 className="cinzel" style={{ fontSize: "1.4rem", marginBottom: "1.6rem", color: revealedSteps < 4 ? STEPS[revealedSteps].color : "#f5ebee" }}>
+              {revealedSteps < 4 ? STEPS[revealedSteps].label : "All Cards Drawn"}
+            </h2>
+            <div style={{ marginBottom: "1.6rem" }}>
+              {pairs.slice(0, revealedSteps).map((pair, stepIdx) => (
+                <div
+                  key={stepIdx}
+                  className="pair-block"
+                  style={{ background: "#3a1620", border: `1.5px solid ${STEPS[stepIdx].color}88` }}
+                >
+                  <div className="cinzel" style={{ fontSize: "0.8rem", color: STEPS[stepIdx].color, letterSpacing: "0.1em", marginBottom: "0.7rem" }}>
+                    {STEPS[stepIdx].label}
+                  </div>
+                  <div style={{ display: "flex", gap: "1.2rem", flexWrap: "wrap", marginBottom: "0.9rem" }}>
+                    {pair.map((c, i) => (
+                      <div key={i} style={{ flex: "1 1 45%" }}>
+                        <div className="cinzel" style={{ fontSize: "1.05rem", marginBottom: "0.25rem" }}>{c.n}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {pairSyntheses[stepIdx] && (
+                    <div style={{ fontSize: "1.05rem", color: "#e8cdd3", borderTop: `1px solid ${STEPS[stepIdx].color}44`, paddingTop: "0.8rem" }}>
+                      {pairSyntheses[stepIdx]}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            {synthLoading ? (
+              <div style={{ padding: "1rem 0" }}>
+                <Loader2 size={24} style={{ color: "#4dd8cc", animation: "spin 1.2s linear infinite" }} />
+                <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+              </div>
+            ) : (
+              <button className="glow-btn" onClick={revealNextPair}>
+                <Sparkles size={16} style={{ verticalAlign: "middle", marginRight: 6 }} />
+                {revealedSteps < 4 ? `Reveal ${STEPS[revealedSteps].label}` : "Get My Reading"}
+              </button>
+            )}
+          </>
+        )}
+
+        {stage === "reading" && (
+          <>
+            {loading && (
+              <div style={{ padding: "3rem 0" }}>
+                <Loader2 size={30} style={{ color: "#4dd8cc", animation: "spin 1.2s linear infinite" }} />
+                <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                <p style={{ color: "#e8cdd3", fontStyle: "italic", marginTop: "1rem" }}>Reading the cards...</p>
+              </div>
+            )}
+            {error && (
+              <>
+                <p style={{ color: "#e05a78", marginBottom: "1rem" }}>{error}</p>
+                <button className="glow-btn" onClick={() => generateReading(goal)}>Try Again</button>
+              </>
+            )}
+            {reading && !loading && (
+              <>
+                <h2 className="cinzel" style={{ fontSize: "1.4rem", marginBottom: "1.2rem" }}>Your Reading</h2>
+                {savedCode && (
+                  <p style={{ background: "rgba(77,216,204,0.12)", border: "1px solid rgba(77,216,204,0.4)", borderRadius: 10, padding: "0.8rem 1rem", color: "#4dd8cc", fontWeight: 700, fontSize: "1rem", marginBottom: "1.4rem" }}>
+                    Copy this page's link now — it's already saved, and brings you straight back to this exact reading anytime.
+                  </p>
+                )}
+                <p style={{ color: "#f5ebee", lineHeight: 1.75, textAlign: "left", marginBottom: "1.6rem" }}>{reading}</p>
+                <button className="glow-btn" onClick={() => setStage("oath")}>
+                  Receive Your Meditation
+                </button>
+              </>
+            )}
+          </>
+        )}
+
+        {stage === "oath" && (
+          <>
+            <h2 className="cinzel" style={{ fontSize: "1.4rem", marginBottom: "1.2rem" }}>
+              Speak This Aloud
+            </h2>
+            <div style={{ background: "#3a1620", border: "1px solid rgba(77,216,204,0.35)", borderRadius: 14, padding: "1.6rem", marginBottom: "1.6rem" }}>
+              <p style={{ fontStyle: "italic", color: "#f5ebee", fontSize: "1.2rem", lineHeight: 1.7, margin: 0 }}>
+                "{OATH}"
+              </p>
+            </div>
+            <label style={{ display: "flex", alignItems: "center", gap: "0.7rem", justifyContent: "center", marginBottom: "1.6rem", cursor: "pointer" }}>
+              <input type="checkbox" checked={oathChecked} onChange={(e) => setOathChecked(e.target.checked)} style={{ width: 20, height: 20 }} />
+              <span style={{ color: "#e8cdd3" }}>I have spoken this aloud</span>
+            </label>
+            <input
+              type="text"
+              className="field"
+              placeholder="Your name"
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              style={{ marginBottom: "1rem" }}
+            />
+            <input
+              type="email"
+              className="field"
+              placeholder="you@email.com"
+              value={emailInput}
+              onChange={(e) => setEmailInput(e.target.value)}
+              style={{ marginBottom: "1.4rem" }}
+            />
+            <button
+              className="glow-btn"
+              disabled={!oathChecked || !emailInput.includes("@") || !nameInput.trim()}
+              onClick={confirmOathAndSave}
+            >
+              Confirm &amp; Receive
+            </button>
+          </>
+        )}
+
+        {stage === "meditation" && unlocked && (
+          <>
+            <h2 className="cinzel" style={{ fontSize: "1.4rem", marginBottom: "1rem" }}>Your Meditation</h2>
+            <p style={{ color: "#e8cdd3", marginBottom: "1rem", fontStyle: "italic" }}>
+              Sit down. Get comfortable. Let yourself settle in fully. Make sure
+              you are not operating any machinery.
+            </p>
+            {savedCode && (
+              <p style={{ background: "rgba(77,216,204,0.12)", border: "1px solid rgba(77,216,204,0.4)", borderRadius: 10, padding: "0.8rem 1rem", color: "#4dd8cc", fontWeight: 700, fontSize: "1rem", marginBottom: "1.2rem" }}>
+                Copy this page's link now — it's your way back, every day, for the next eight days.
+              </p>
+            )}
+            {voices.length > 0 && (
+              <select
+                className="field"
+                value={voiceIdx}
+                onChange={(e) => setVoiceIdx(Number(e.target.value))}
+                style={{ marginBottom: "1rem", maxWidth: 320, margin: "0 auto 1rem" }}
+              >
+                {voices.map((v, i) => (
+                  <option key={i} value={i}>{v.name} ({v.lang})</option>
+                ))}
+              </select>
+            )}
+            <div className="audio-row">
+              <button className="audio-btn" onClick={tonePlaying ? stopTone : startTone}>
+                {tonePlaying ? <Square size={13} /> : <Volume2 size={13} />}
+                {tonePlaying ? "Stop Tone" : "Play Healing Tone"}
+              </button>
+              <button className="audio-btn" onClick={speaking ? stopSpeaking : speakMeditation}>
+                {speaking ? <Square size={13} /> : <Play size={13} />}
+                {speaking ? "Stop Reading" : "Read To Me"}
+              </button>
+              <button
+                className="audio-btn"
+                onClick={() => {
+                  const blob = new Blob([meditation], { type: "text/plain" });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = "my-identity-meditation.txt";
+                  a.click();
+                  URL.revokeObjectURL(url);
+                }}
+              >
+                <Download size={13} /> Save as Text
+              </button>
+            </div>
+            {meditationParts ? (
+              <div style={{ textAlign: "left", marginBottom: "2rem" }}>
+                <p style={{ color: "#f5ebee", lineHeight: 1.85, whiteSpace: "pre-line", marginBottom: "1.2rem" }}>
+                  {meditationParts.induction}
+                </p>
+                <p style={{ color: "#f5ebee", lineHeight: 1.85, whiteSpace: "pre-line", marginBottom: "1.2rem" }}>
+                  {meditationParts.visualization}
+                </p>
+                <p style={{ color: "#f5ebee", lineHeight: 1.85, whiteSpace: "pre-line" }}>
+                  Now, count to eight once more. With each number, rise gently back into
+                  this moment — still holding everything you just became.
+                  <br /><br />
+                  One... two... three... four... five... six... seven... eight.
+                  <br /><br />
+                  Open your eyes. Take a deep breath.
+                  <br /><br />
+                  <strong style={{ color: "#4dd8cc" }}>
+                    Repeat this practice daily, for the next eight days.
+                  </strong>
+                </p>
+              </div>
+            ) : (
+              <p style={{ color: "#f5ebee", lineHeight: 1.85, textAlign: "left", whiteSpace: "pre-line", marginBottom: "2rem" }}>
+                {meditation}
+              </p>
+            )}
+            <div style={{ background: "#3a1620", border: "1px solid rgba(77,216,204,0.3)", borderRadius: 14, padding: "1.3rem 1.5rem", marginBottom: "1.8rem" }}>
+              <p style={{ color: "#e8cdd3", fontStyle: "italic", marginBottom: "0.9rem" }}>
+                This is free. If it moved something in you, consider sending $8.88 back
+                into the exchange — the law of reciprocity helps the universe respond to
+                your desires, and the number 888 carries a resonance that summons your
+                higher self.
+              </p>
+              <a
+                href="https://buy.stripe.com/REPLACE_WITH_YOUR_DONATION_LINK"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ghost-btn"
+                style={{ textDecoration: "none", display: "inline-block" }}
+              >
+                Send $8.88
+              </a>
+            </div>
+            <a
+              href="https://calendly.com/naturopathpain/new-meeting-1"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="glow-btn"
+              style={{ textDecoration: "none", display: "inline-block" }}
+            >
+              Go Deeper — Book a Session
+            </a>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
