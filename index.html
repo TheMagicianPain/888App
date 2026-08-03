@@ -156,9 +156,6 @@ function TarotDraw() {
   const [goal, setGoal] = useState("");
   const [hsv, setHsv] = useState({ vision: "" });
   const [pairs, setPairs] = useState([]);
-  const [revealedSteps, setRevealedSteps] = useState(0);
-  const [pairSyntheses, setPairSyntheses] = useState([]);
-  const [synthLoading, setSynthLoading] = useState(false);
   const [reading, setReading] = useState(null);
   const [meditation, setMeditation] = useState(null);
   const [meditationParts, setMeditationParts] = useState(null);
@@ -224,45 +221,21 @@ function TarotDraw() {
       [majors[1], minors[5]],
     ];
     setPairs(drawnPairs);
-    setRevealedSteps(0);
-    setPairSyntheses([]);
-    setStage("drawing");
+    setStage("reveal");
   }
 
-  async function revealNextPair() {
-    if (revealedSteps < 4) {
-      const stepIdx = revealedSteps;
-      const pair = pairs[stepIdx];
-      setSynthLoading(true);
+  async function submitEmailGate() {
+    if (ZAPIER_WEBHOOK_URL) {
       try {
-        const prompt = `Voice: "The Magician's Path" — esoteric identity-transformation brand, direct and warm, spiritually serious, not stiff.
-
-The identity someone wants to become: "${goal}"
-
-Two cards just drawn for the step "${STEPS[stepIdx].label}": ${pair[0].n} (${pair[0].k}) and ${pair[1].n} (${pair[1].k}).
-
-In 2-3 sentences, synthesize what these two cards mean TOGETHER for this specific person and their stated identity — not two separate meanings, one combined insight. Address them as "you". Plain text only, no JSON, no markdown, no preamble.`;
-        const response = await fetch(WORKER_URL || "https://api.anthropic.com/v1/messages", {
+        await fetch(ZAPIER_WEBHOOK_URL, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model: "claude-sonnet-4-6",
-            max_tokens: 300,
-            messages: [{ role: "user", content: prompt }],
-          }),
+          body: JSON.stringify({ name: nameInput, email: emailInput, identity: goal, source: "tarot-draw" }),
         });
-        const data = await response.json();
-        const text = data.content.map((b) => b.text || "").join("").trim();
-        setPairSyntheses((prev) => [...prev, text]);
       } catch (e) {
-        setPairSyntheses((prev) => [...prev, ""]);
-      } finally {
-        setSynthLoading(false);
-        setRevealedSteps(stepIdx + 1);
+        // don't block the user's experience if this fails silently
       }
-    } else {
-      generateReading(goal);
     }
+    generateReading(goal);
   }
 
   async function generateReading(identity) {
@@ -282,7 +255,10 @@ ${cardList}
 
 Respond ONLY with a JSON object, no markdown, no preamble:
 {
-  "reading": "A flowing personalized reading organized around the four steps in order (Your Archetype, What's Blocking You, The Path Forward, Who You Become), weaving both cards of each step together. In 'The Path Forward', tie the solution to healing the inner child and the alchemy of stepping into a higher identity. Address the reader as 'you'. About 220-260 words.",
+  "archetype": "A personalized interpretation of the 'Your Archetype' card pair (${pairs[0].map((c) => c.n).join(" and ")}), addressing the reader as 'you', tied to their stated identity. 45-60 words.",
+  "blocking": "A personalized interpretation of the 'What's Blocking You' card pair (${pairs[1].map((c) => c.n).join(" and ")}). 45-60 words.",
+  "pathForward": "A personalized interpretation of the 'The Path Forward' card pair (${pairs[2].map((c) => c.n).join(" and ")}), tying the solution to healing the inner child and the alchemy of stepping into a higher identity. 45-60 words.",
+  "whoYouBecome": "A personalized interpretation of the 'Who You Become' card pair (${pairs[3].map((c) => c.n).join(" and ")}). 45-60 words.",
   "visualization": "The centerpiece of a guided visualization, second person, present tense, calm hypnotic pacing with natural pauses written as ellipses. Describe the person vividly embodying the identity '${identity}', informed by the Who You Become card pair (${pairs[3].map((c) => c.n).join(" and ")}). Structure it in this exact order: (1) See this version of themselves clearly, feeling it fully. (2) Take a deep breath and release all need or desire for a specific outcome, feeling that reality settle into their bones. (3) They turn and see a child standing nearby, watching them in awe — they realize it is themselves, no older than eight years old. They walk toward the child, embrace them slowly, and the two merge until they are one single person. (4) From there, they are fully this new identity now, completely embodied. About 200-240 words. Do not include any counting, breathing instructions, eyes-opening language, session-closing language, or any mention of the number 888 — those are all handled separately."
 }`;
 
@@ -292,7 +268,7 @@ Respond ONLY with a JSON object, no markdown, no preamble:
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           model: "claude-sonnet-4-6",
-          max_tokens: 1200,
+          max_tokens: 1400,
           messages: [{ role: "user", content: prompt }],
         }),
       });
@@ -300,7 +276,12 @@ Respond ONLY with a JSON object, no markdown, no preamble:
       const text = data.content.map((b) => b.text || "").join("");
       const clean = text.replace(/```json|```/g, "").trim();
       const parsed = JSON.parse(clean);
-      setReading(parsed.reading);
+      setReading({
+        archetype: parsed.archetype,
+        blocking: parsed.blocking,
+        pathForward: parsed.pathForward,
+        whoYouBecome: parsed.whoYouBecome,
+      });
 
       const inductionPre = `Before we begin — make sure you are not operating any machinery, and that you are seated safely in a quiet space.
 
@@ -349,7 +330,7 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
       try {
         await window.storage.set(
           `meditation:${code}`,
-          JSON.stringify({ goal, reading: parsed.reading, meditation: fullMeditation, meditationParts: parts, email: "" }),
+          JSON.stringify({ goal, reading: parsed, meditation: fullMeditation, meditationParts: parts, email: emailInput, name: nameInput }),
           false
         );
         setSavedCode(code);
@@ -535,26 +516,7 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
     setVoiceLoading(false);
   }
 
-  async function confirmOathAndSave() {
-    if (savedCode) {
-      try {
-        await window.storage.set(
-          `meditation:${savedCode}`,
-          JSON.stringify({ goal, reading, meditation, meditationParts, email: emailInput, name: nameInput }),
-          false
-        );
-      } catch (e) {}
-    }
-    if (ZAPIER_WEBHOOK_URL) {
-      try {
-        await fetch(ZAPIER_WEBHOOK_URL, {
-          method: "POST",
-          body: JSON.stringify({ name: nameInput, email: emailInput, identity: goal, source: "tarot-draw" }),
-        });
-      } catch (e) {
-        // don't block the user's experience if this fails silently
-      }
-    }
+  function confirmOathAndSave() {
     setUnlocked(true);
     setStage("meditation");
   }
@@ -743,13 +705,13 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
           </>
         )}
 
-        {stage === "drawing" && (
+        {stage === "reveal" && (
           <>
-            <h2 className="cinzel" style={{ fontSize: "1.4rem", marginBottom: "1.6rem", color: revealedSteps < 4 ? STEPS[revealedSteps].color : "#f5ebee" }}>
-              {revealedSteps < 4 ? STEPS[revealedSteps].label : "All Cards Drawn"}
+            <h2 className="cinzel" style={{ fontSize: "1.4rem", marginBottom: "1.6rem" }}>
+              Your Cards Are Drawn
             </h2>
-            <div style={{ marginBottom: "1.6rem" }}>
-              {pairs.slice(0, revealedSteps).map((pair, stepIdx) => (
+            <div style={{ marginBottom: "1.8rem" }}>
+              {pairs.map((pair, stepIdx) => (
                 <div
                   key={stepIdx}
                   className="pair-block"
@@ -758,32 +720,42 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
                   <div className="cinzel" style={{ fontSize: "0.8rem", color: STEPS[stepIdx].color, letterSpacing: "0.1em", marginBottom: "0.7rem" }}>
                     {STEPS[stepIdx].label}
                   </div>
-                  <div style={{ display: "flex", gap: "1.2rem", flexWrap: "wrap", marginBottom: "0.9rem" }}>
+                  <div style={{ display: "flex", gap: "1.2rem", flexWrap: "wrap" }}>
                     {pair.map((c, i) => (
                       <div key={i} style={{ flex: "1 1 45%" }}>
-                        <div className="cinzel" style={{ fontSize: "1.05rem", marginBottom: "0.25rem" }}>{c.n}</div>
+                        <div className="cinzel" style={{ fontSize: "1.05rem" }}>{c.n}</div>
                       </div>
                     ))}
                   </div>
-                  {pairSyntheses[stepIdx] && (
-                    <div style={{ fontSize: "1.05rem", color: "#e8cdd3", borderTop: `1px solid ${STEPS[stepIdx].color}44`, paddingTop: "0.8rem" }}>
-                      {pairSyntheses[stepIdx]}
-                    </div>
-                  )}
                 </div>
               ))}
             </div>
-            {synthLoading ? (
-              <div style={{ padding: "1rem 0" }}>
-                <Loader2 size={24} style={{ color: "#4dd8cc", animation: "spin 1.2s linear infinite" }} />
-                <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-              </div>
-            ) : (
-              <button className="glow-btn" onClick={revealNextPair}>
-                <Sparkles size={16} style={{ verticalAlign: "middle", marginRight: 6 }} />
-                {revealedSteps < 4 ? `Reveal ${STEPS[revealedSteps].label}` : "Get My Reading"}
-              </button>
-            )}
+            <p style={{ color: "#4dd8cc", fontWeight: 700, fontSize: "1.15rem", marginBottom: "1.6rem" }}>
+              Your results are ready.
+            </p>
+            <input
+              type="text"
+              className="field"
+              placeholder="Your name"
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              style={{ marginBottom: "1rem" }}
+            />
+            <input
+              type="email"
+              className="field"
+              placeholder="you@email.com"
+              value={emailInput}
+              onChange={(e) => setEmailInput(e.target.value)}
+              style={{ marginBottom: "1.4rem" }}
+            />
+            <button
+              className="glow-btn"
+              disabled={!emailInput.includes("@") || !nameInput.trim()}
+              onClick={submitEmailGate}
+            >
+              See My Reading
+            </button>
           </>
         )}
 
@@ -810,7 +782,16 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
                     Copy this page's link now — it's already saved, and brings you straight back to this exact reading anytime.
                   </p>
                 )}
-                <p style={{ color: "#f5ebee", lineHeight: 1.75, textAlign: "left", marginBottom: "1.6rem" }}>{reading}</p>
+                <div style={{ textAlign: "left", marginBottom: "1.6rem" }}>
+                  <div className="cinzel" style={{ fontSize: "0.85rem", color: STEPS[0].color, letterSpacing: "0.08em", marginBottom: "0.4rem" }}>{STEPS[0].label}</div>
+                  <p style={{ color: "#f5ebee", lineHeight: 1.75, marginBottom: "1.3rem" }}>{reading.archetype}</p>
+                  <div className="cinzel" style={{ fontSize: "0.85rem", color: STEPS[1].color, letterSpacing: "0.08em", marginBottom: "0.4rem" }}>{STEPS[1].label}</div>
+                  <p style={{ color: "#f5ebee", lineHeight: 1.75, marginBottom: "1.3rem" }}>{reading.blocking}</p>
+                  <div className="cinzel" style={{ fontSize: "0.85rem", color: STEPS[2].color, letterSpacing: "0.08em", marginBottom: "0.4rem" }}>{STEPS[2].label}</div>
+                  <p style={{ color: "#f5ebee", lineHeight: 1.75, marginBottom: "1.3rem" }}>{reading.pathForward}</p>
+                  <div className="cinzel" style={{ fontSize: "0.85rem", color: STEPS[3].color, letterSpacing: "0.08em", marginBottom: "0.4rem" }}>{STEPS[3].label}</div>
+                  <p style={{ color: "#f5ebee", lineHeight: 1.75 }}>{reading.whoYouBecome}</p>
+                </div>
                 <button className="glow-btn" onClick={() => setStage("oath")}>
                   Receive Your Meditation
                 </button>
@@ -833,25 +814,9 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
               <input type="checkbox" checked={oathChecked} onChange={(e) => setOathChecked(e.target.checked)} style={{ width: 20, height: 20 }} />
               <span style={{ color: "#e8cdd3" }}>I have spoken this aloud</span>
             </label>
-            <input
-              type="text"
-              className="field"
-              placeholder="Your name"
-              value={nameInput}
-              onChange={(e) => setNameInput(e.target.value)}
-              style={{ marginBottom: "1rem" }}
-            />
-            <input
-              type="email"
-              className="field"
-              placeholder="you@email.com"
-              value={emailInput}
-              onChange={(e) => setEmailInput(e.target.value)}
-              style={{ marginBottom: "1.4rem" }}
-            />
             <button
               className="glow-btn"
-              disabled={!oathChecked || !emailInput.includes("@") || !nameInput.trim()}
+              disabled={!oathChecked}
               onClick={confirmOathAndSave}
             >
               Confirm &amp; Receive
@@ -958,7 +923,7 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
                 higher self.
               </p>
               <a
-                href="https://buy.stripe.com/REPLACE_WITH_YOUR_DONATION_LINK"
+                href="https://buy.stripe.com/bJeaEX1eO8BactZ8tidAk02"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="ghost-btn"
@@ -987,5 +952,4 @@ const root = ReactDOM.createRoot(container);
 root.render(<TarotDraw />);
 </script>
 </body>
-</html>
 </html>
