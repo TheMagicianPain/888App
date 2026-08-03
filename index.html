@@ -181,6 +181,7 @@ function TarotDraw() {
   const speechUrlRef = useRef(null);
   const speechTimeoutRef = useRef(null);
   const stopFlagRef = useRef(false);
+  const firstClipPrefetchRef = useRef(null);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -491,7 +492,12 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
     }
 
     try {
-      ensureFetching(nextSpeakIndex(0));
+      const firstIdx = nextSpeakIndex(0);
+      if (firstClipPrefetchRef.current) {
+        fetchCache[firstIdx] = firstClipPrefetchRef.current;
+        firstClipPrefetchRef.current = null;
+      }
+      ensureFetching(firstIdx);
 
       for (let idx = 0; idx < beats.length; idx++) {
         if (stopFlagRef.current) break;
@@ -504,7 +510,10 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
         }
 
         ensureFetching(idx);
-        const url = await fetchCache[idx];
+        let url = await fetchCache[idx];
+        if (!url) {
+          url = await fetchClipUrl(beat.text);
+        }
         ensureFetching(nextSpeakIndex(idx + 1));
 
         const elapsed = await playClipUrl(url);
@@ -544,6 +553,9 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
     setUnlocked(true);
     setStage("meditation");
     startTone();
+    if (meditationParts && meditationParts.inductionPre) {
+      firstClipPrefetchRef.current = fetchClipUrl(meditationParts.inductionPre).catch(() => null);
+    }
   }
 
   return (
