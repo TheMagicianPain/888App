@@ -173,6 +173,7 @@ function TarotDraw() {
   const [speaking, setSpeaking] = useState(false);
   const [voiceLoading, setVoiceLoading] = useState(false);
   const [voiceError, setVoiceError] = useState(null);
+  const [toneVolume, setToneVolume] = useState(0.36); // 40% lower than the original 0.6 default
 
   const audioCtxRef = useRef(null);
   const oscRef = useRef(null);
@@ -352,9 +353,9 @@ Repeat this practice daily, for the next eight days.`;
       audio.play();
       let v = 0;
       const fade = setInterval(() => {
-        v += 0.03;
-        audio.volume = Math.min(v, 0.6);
-        if (v >= 0.6) clearInterval(fade);
+        v += toneVolume / 20;
+        audio.volume = Math.min(v, toneVolume);
+        if (v >= toneVolume) clearInterval(fade);
       }, 80);
       audioElRef.current = audio;
       setTonePlaying(true);
@@ -369,13 +370,23 @@ Repeat this practice daily, for the next eight days.`;
     osc.type = "sine";
     osc.frequency.value = 432;
     gain.gain.setValueAtTime(0, ctx.currentTime);
-    gain.gain.linearRampToValueAtTime(0.035, ctx.currentTime + 2.5);
+    gain.gain.linearRampToValueAtTime(toneVolume * 0.06, ctx.currentTime + 2.5);
     osc.connect(gain);
     gain.connect(ctx.destination);
     osc.start();
     oscRef.current = osc;
     gainRef.current = gain;
     setTonePlaying(true);
+  }
+
+  function handleVolumeChange(newVal) {
+    setToneVolume(newVal);
+    if (audioElRef.current) {
+      audioElRef.current.volume = newVal;
+    }
+    if (gainRef.current && audioCtxRef.current) {
+      gainRef.current.gain.setValueAtTime(newVal * 0.06, audioCtxRef.current.currentTime);
+    }
   }
 
   function stopTone() {
@@ -599,10 +610,13 @@ Repeat this practice daily, for the next eight days.`;
               Not a goal. Not an outcome. <strong style={{ color: "#f5ebee" }}>Let your imagination run free.</strong>{" "}
               <strong style={{ color: "#f5ebee" }}>You are worthy, deserving, powerful, and capable of anything.</strong>
             </p>
+            <p style={{ color: "#4dd8cc", fontSize: "0.95rem", marginBottom: "0.8rem", fontWeight: 700 }}>
+              Include as much detail as possible — the more specific you are, the more this reading can actually speak to you.
+            </p>
             <textarea
               className="field"
               rows={4}
-              placeholder="Describe that identity — how they think, carry themselves, move through the world..."
+              placeholder="Describe that identity in as much detail as possible — how they think, carry themselves, speak, move through the world..."
               value={goal}
               onChange={(e) => setGoal(e.target.value)}
               style={{ marginBottom: "1.2rem" }}
@@ -800,6 +814,19 @@ Repeat this practice daily, for the next eight days.`;
                 {voiceError}
               </p>
             )}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.7rem", marginBottom: "1.2rem" }}>
+              <Volume2 size={14} style={{ color: "#e8cdd3" }} />
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.02"
+                value={toneVolume}
+                onChange={(e) => handleVolumeChange(Number(e.target.value))}
+                style={{ width: 160 }}
+              />
+              <span style={{ color: "#e8cdd3", fontSize: "0.85rem" }}>{Math.round(toneVolume * 100)}%</span>
+            </div>
             <div className="audio-row">
               <button className="audio-btn" onClick={tonePlaying ? stopTone : startTone}>
                 {tonePlaying ? <Square size={13} /> : <Volume2 size={13} />}
