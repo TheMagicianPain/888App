@@ -115,7 +115,7 @@ const OATH = `I am ready to ascend. I release my old, lesser identity. I am read
 
 const CUSTOM_TONE_URL = "https://themagicianpain.github.io/432hz-tone/432%20Hz%20Bring%20Down%20Heart%20Rate.mp3";
 const ZAPIER_WEBHOOK_URL = "https://hooks.zapier.com/hooks/catch/28412006/46h2c0y/";
-const ELEVENLABS_VOICE_ID = "Nyip1VgoS6bg9Vl30y8v";
+const ELEVENLABS_VOICE_ID = "jxJbAWE9XnDZWevjkL10";
 
 function GlitterLayer({ count = 35 }) {
   const [dots] = useState(() =>
@@ -172,6 +172,7 @@ function TarotDraw() {
   const [tonePlaying, setTonePlaying] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [voiceLoading, setVoiceLoading] = useState(false);
+  const [voiceError, setVoiceError] = useState(null);
 
   const audioCtxRef = useRef(null);
   const oscRef = useRef(null);
@@ -399,6 +400,7 @@ Repeat this practice daily, for the next eight days.`;
   async function speakMeditation() {
     const sections = meditation.split(/\n\n+/).filter((s) => s.trim());
     let i = 0;
+    setVoiceError(null);
     setSpeaking(true);
     setVoiceLoading(true);
 
@@ -412,6 +414,14 @@ Repeat this practice daily, for the next eight days.`;
           method: "POST",
           body: JSON.stringify({ text: sections[i], voiceId: ELEVENLABS_VOICE_ID }),
         });
+        if (!response.ok) {
+          const errText = await response.text();
+          console.error("TTS request failed:", response.status, errText);
+          setVoiceError(`Voice failed to load (status ${response.status}). Check the ElevenLabs key in your Worker.`);
+          setSpeaking(false);
+          setVoiceLoading(false);
+          return;
+        }
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
         speechUrlRef.current = url;
@@ -429,6 +439,7 @@ Repeat this practice daily, for the next eight days.`;
         };
         audio.play();
       } catch (e) {
+        setVoiceError("Voice failed to play. Check your connection and try again.");
         setSpeaking(false);
         setVoiceLoading(false);
       }
@@ -782,6 +793,11 @@ Repeat this practice daily, for the next eight days.`;
             {savedCode && (
               <p style={{ background: "rgba(77,216,204,0.12)", border: "1px solid rgba(77,216,204,0.4)", borderRadius: 10, padding: "0.8rem 1rem", color: "#4dd8cc", fontWeight: 700, fontSize: "1rem", marginBottom: "1.2rem" }}>
                 Copy this page's link now — it's your way back, every day, for the next eight days.
+              </p>
+            )}
+            {voiceError && (
+              <p style={{ color: "#e05a78", fontSize: "0.9rem", marginBottom: "1rem" }}>
+                {voiceError}
               </p>
             )}
             <div className="audio-row">
