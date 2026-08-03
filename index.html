@@ -460,7 +460,6 @@ Repeat this practice daily, for the next eight days.`;
       try {
         await fetch(ZAPIER_WEBHOOK_URL, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ name: nameInput, email: emailInput, identity: goal, source: "tarot-draw" }),
         });
       } catch (e) {
