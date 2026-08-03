@@ -418,8 +418,7 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
     });
   }
 
-  async function speakClip(text) {
-    const startedAt = Date.now();
+  async function fetchClipUrl(text) {
     const response = await fetch(`${WORKER_URL}/tts`, {
       method: "POST",
       body: JSON.stringify({ text, voiceId: ELEVENLABS_VOICE_ID }),
@@ -430,8 +429,11 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
       throw new Error(`Voice failed to load (status ${response.status}). Check the ElevenLabs key in your Worker.`);
     }
     const blob = await response.blob();
-    const url = URL.createObjectURL(blob);
-    speechUrlRef.current = url;
+    return URL.createObjectURL(blob);
+  }
+
+  async function playClipUrl(url) {
+    const startedAt = Date.now();
     const audio = new Audio(url);
     speechAudioRef.current = audio;
     setVoiceLoading(false);
@@ -439,15 +441,7 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
       audio.onended = resolve;
       audio.play();
     });
-    URL.revokeObjectURL(url);
     return Date.now() - startedAt;
-  }
-
-  async function speakClipMinDuration(text, minMs) {
-    const elapsed = await speakClip(text);
-    if (elapsed < minMs) {
-      await wait(minMs - elapsed);
-    }
   }
 
   async function speakMeditation() {
@@ -483,15 +477,41 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
         ]
       : meditation.split(/\n\n+/).filter((s) => s.trim()).map((text) => ({ type: "speak", text }));
 
+    function nextSpeakIndex(fromIdx) {
+      for (let i = fromIdx; i < beats.length; i++) {
+        if (beats[i].type === "speak" || beats[i].type === "speakMin") return i;
+      }
+      return -1;
+    }
+
+    const fetchCache = {};
+    function ensureFetching(idx) {
+      if (idx === -1 || fetchCache[idx]) return;
+      fetchCache[idx] = fetchClipUrl(beats[idx].text);
+    }
+
     try {
-      for (const beat of beats) {
+      ensureFetching(nextSpeakIndex(0));
+
+      for (let idx = 0; idx < beats.length; idx++) {
         if (stopFlagRef.current) break;
+        const beat = beats[idx];
+
         if (beat.type === "pause") {
+          ensureFetching(nextSpeakIndex(idx + 1));
           await wait(beat.ms);
-        } else if (beat.type === "speakMin") {
-          await speakClipMinDuration(beat.text, beat.ms);
-        } else {
-          await speakClip(beat.text);
+          continue;
+        }
+
+        ensureFetching(idx);
+        const url = await fetchCache[idx];
+        ensureFetching(nextSpeakIndex(idx + 1));
+
+        const elapsed = await playClipUrl(url);
+        URL.revokeObjectURL(url);
+
+        if (beat.type === "speakMin" && elapsed < beat.ms) {
+          await wait(beat.ms - elapsed);
         }
       }
     } catch (e) {
@@ -523,6 +543,7 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
   function confirmOathAndSave() {
     setUnlocked(true);
     setStage("meditation");
+    startTone();
   }
 
   return (
@@ -847,6 +868,7 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
             )}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.7rem", marginBottom: "1.2rem" }}>
               <Volume2 size={14} style={{ color: "#e8cdd3" }} />
+              <span style={{ color: "#e8cdd3", fontSize: "0.85rem" }}>Music Volume</span>
               <input
                 type="range"
                 min="0"
@@ -859,10 +881,6 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
               <span style={{ color: "#e8cdd3", fontSize: "0.85rem" }}>{Math.round(toneVolume * 100)}%</span>
             </div>
             <div className="audio-row">
-              <button className="audio-btn" onClick={tonePlaying ? stopTone : startTone}>
-                {tonePlaying ? <Square size={13} /> : <Volume2 size={13} />}
-                {tonePlaying ? "Stop Tone" : "Play Healing Tone"}
-              </button>
               <button className="audio-btn" onClick={speaking ? stopSpeaking : speakMeditation}>
                 {speaking ? <Square size={13} /> : <Play size={13} />}
                 {speaking ? (voiceLoading ? "Loading..." : "Stop Reading") : "Read To Me"}
