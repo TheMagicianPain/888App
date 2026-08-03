@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=EB+Garamond:ital,wght@0,500;0,600;1,400&display=swap" rel="stylesheet">
 <style>
+  *, *::before, *::after { box-sizing: border-box; }
   body { margin: 0; }
 </style>
 </head>
@@ -345,26 +346,35 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
     }
   }
 
-  function startTone() {
-    if (CUSTOM_TONE_URL) {
-      const audio = new Audio(CUSTOM_TONE_URL);
-      audio.loop = true;
-      audio.volume = 0;
-      audio.play();
-      let v = 0;
-      const fade = setInterval(() => {
-        v += toneVolume / 20;
-        audio.volume = Math.min(v, toneVolume);
-        if (v >= toneVolume) clearInterval(fade);
-      }, 80);
-      audioElRef.current = audio;
-      setTonePlaying(true);
-      return;
-    }
+  async function startTone() {
     if (!audioCtxRef.current) {
       audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
     }
     const ctx = audioCtxRef.current;
+
+    if (CUSTOM_TONE_URL) {
+      try {
+        const response = await fetch(CUSTOM_TONE_URL);
+        const arrayBuffer = await response.arrayBuffer();
+        const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+        const source = ctx.createBufferSource();
+        source.buffer = audioBuffer;
+        source.loop = true;
+        const gain = ctx.createGain();
+        gain.gain.setValueAtTime(0, ctx.currentTime);
+        gain.gain.linearRampToValueAtTime(toneVolume, ctx.currentTime + 2.5);
+        source.connect(gain);
+        gain.connect(ctx.destination);
+        source.start();
+        oscRef.current = source;
+        gainRef.current = gain;
+        setTonePlaying(true);
+      } catch (e) {
+        setVoiceError("Healing tone failed to load.");
+      }
+      return;
+    }
+
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
     osc.type = "sine";
@@ -381,27 +391,21 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
 
   function handleVolumeChange(newVal) {
     setToneVolume(newVal);
-    if (audioElRef.current) {
-      audioElRef.current.volume = newVal;
-    }
     if (gainRef.current && audioCtxRef.current) {
-      gainRef.current.gain.setValueAtTime(newVal * 0.06, audioCtxRef.current.currentTime);
+      const targetVal = CUSTOM_TONE_URL ? newVal : newVal * 0.06;
+      gainRef.current.gain.setValueAtTime(targetVal, audioCtxRef.current.currentTime);
     }
   }
 
   function stopTone() {
-    if (audioElRef.current) {
-      audioElRef.current.pause();
-      audioElRef.current = null;
-    }
     if (oscRef.current) {
       const ctx = audioCtxRef.current;
       const gain = gainRef.current;
       gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.6);
-      const osc = oscRef.current;
+      const src = oscRef.current;
       setTimeout(() => {
-        osc.stop();
-        osc.disconnect();
+        src.stop();
+        src.disconnect();
       }, 650);
       oscRef.current = null;
     }
