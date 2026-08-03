@@ -181,6 +181,8 @@ function TarotDraw() {
   const audioElRef = useRef(null);
   const speechAudioRef = useRef(null);
   const speechUrlRef = useRef(null);
+  const speechTimeoutRef = useRef(null);
+  const stopFlagRef = useRef(false);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -194,12 +196,7 @@ function TarotDraw() {
             setGoal(saved.goal);
             setReading(saved.reading);
             setMeditation(saved.meditation);
-            const parts = saved.meditation.split("\n\n");
-            setMeditationParts({
-              induction: parts[0] || "",
-              visualization: parts.slice(1, -1).join("\n\n") || "",
-              closing: parts[parts.length - 1] || "",
-            });
+            setMeditationParts(saved.meditationParts || null);
             setSavedCode(code);
             setUnlocked(true);
             setStage("meditation");
@@ -286,7 +283,7 @@ ${cardList}
 Respond ONLY with a JSON object, no markdown, no preamble:
 {
   "reading": "A flowing personalized reading organized around the four steps in order (Your Archetype, What's Blocking You, The Path Forward, Who You Become), weaving both cards of each step together. In 'The Path Forward', tie the solution to healing the inner child and the alchemy of stepping into a higher identity. Address the reader as 'you'. About 220-260 words.",
-  "visualization": "The centerpiece of a guided visualization, second person, present tense, calm hypnotic pacing with natural pauses written as ellipses. Describe the person vividly embodying the identity '${identity}', informed by the Who You Become card pair (${pairs[3].map((c) => c.n).join(" and ")}). Have them: see this version of themselves clearly, take a deep breath and release all need or desire for a specific outcome, feel that reality settling into their bones, then turn and see their current, everyday self sitting nearby in meditation, walk toward that current self, watch it slowly fade away, and step into the space it occupied — becoming that higher identity fully. About 150-180 words. Do not include any counting, breathing instructions to open eyes, or session-closing language — that is handled separately."
+  "visualization": "The centerpiece of a guided visualization, second person, present tense, calm hypnotic pacing with natural pauses written as ellipses. Describe the person vividly embodying the identity '${identity}', informed by the Who You Become card pair (${pairs[3].map((c) => c.n).join(" and ")}). Structure it in this exact order: (1) See this version of themselves clearly, feeling it fully. (2) Take a deep breath and release all need or desire for a specific outcome, feeling that reality settle into their bones. (3) They turn and see a child standing nearby, watching them in awe — they realize it is themselves, no older than eight years old. They walk toward the child, embrace them slowly, and the two merge until they are one single person. (4) From there, they are fully this new identity now, completely embodied. About 200-240 words. Do not include any counting, breathing instructions, eyes-opening language, session-closing language, or any mention of the number 888 — those are all handled separately."
 }`;
 
     try {
@@ -305,32 +302,54 @@ Respond ONLY with a JSON object, no markdown, no preamble:
       const parsed = JSON.parse(clean);
       setReading(parsed.reading);
 
-      const induction = `Before we begin — make sure you are not operating any machinery, and that you are seated safely in a quiet space.
+      const inductionPre = `Before we begin — make sure you are not operating any machinery, and that you are seated safely in a quiet space.
 
 When you're ready, close your eyes.
 
 Take a slow breath in... and let it out.
 
-Now, count slowly to eight in your mind. With each number, feel your eyelids grow heavier... heavier... as if they are made of stone. By the time you reach eight, imagine they are so heavy you could not open them even if you tried. Test it now — try gently to open them, and feel just how heavy they have become.
+Now, count slowly to eight with me. With each number, feel your eyelids grow heavier... heavier... as if they are made of stone.`;
 
-One... two... three... four... five... six... seven... eight.`;
+      const inductionCount = `One... two... three... four... five... six... seven... eight.`;
 
-      const closing = `Now, count to eight once more. With each number, rise gently back into this moment — still holding everything you just became.
+      const inductionPost = `By now, they may feel too heavy to open. Try, gently — and notice just how heavy they've become.`;
 
-One... two... three... four... five... six... seven... eight.
+      const voidLight = `Imagine yourself inside a black void. But it isn't empty — it's warm. Comforting. Completely safe. You are held here, fully, by love itself.
 
-Open your eyes. Take a deep breath.
+In the distance, a single point of light appears. Bright white. Slowly, it begins to move toward you.
 
-Repeat this practice daily, for the next eight days.`;
+It grows brighter... and brighter... until it completely surrounds you, consuming you entirely in its light.
 
-      setMeditation(`${induction}\n\n${parsed.visualization}\n\n${closing}`);
-      setMeditationParts({ induction, visualization: parsed.visualization, closing });
+Feel its warmth now — not just on your skin, but inside you. Inside every cell of your body. Healing, as it moves through you.
+
+...Silence.`;
+
+      const anchor = `From this moment forward — anytime you say the number eight, eight, eight, or hear it spoken by someone else, this exact feeling becomes immediately available to you again.`;
+
+      const closingPre = `Now, let's count back to eight together. With each number, you'll rise gently back into this moment — still holding everything you just became.`;
+
+      const closingCount = `One... two... three... four... five... six... seven... eight.`;
+
+      const closingPost = `Open your eyes. Take a deep breath.`;
+
+      const reminder = `Repeat this practice daily, for the next eight days. Make sure to save this page's link, so you can return to it — and to this exact meditation — every day.`;
+
+      const reciprocity = `This was given to you freely. If it moved something in you, consider offering eight dollars and eighty-eight cents back into the exchange. The law of reciprocity helps the universe respond to your own desires, and the number eight, eight, eight carries a resonance that summons your higher self.`;
+
+      const induction = `${inductionPre}\n\n${inductionCount}\n\n${inductionPost}`;
+      const closing = `${closingPre}\n\n${closingCount}\n\n${closingPost}`;
+
+      const fullMeditation = [induction, voidLight, parsed.visualization, anchor, closing, reminder, reciprocity].join("\n\n");
+      const parts = { inductionPre, inductionCount, inductionPost, voidLight, visualization: parsed.visualization, anchor, closingPre, closingCount, closingPost, reminder, reciprocity };
+
+      setMeditation(fullMeditation);
+      setMeditationParts(parts);
 
       const code = Math.random().toString(36).slice(2, 8);
       try {
         await window.storage.set(
           `meditation:${code}`,
-          JSON.stringify({ goal, reading: parsed.reading, meditation: `${induction}\n\n${parsed.visualization}\n\n${closing}`, email: "" }),
+          JSON.stringify({ goal, reading: parsed.reading, meditation: fullMeditation, meditationParts: parts, email: "" }),
           false
         );
         setSavedCode(code);
@@ -408,58 +427,102 @@ Repeat this practice daily, for the next eight days.`;
     setTonePlaying(false);
   }
 
+  function wait(ms) {
+    return new Promise((resolve) => {
+      speechTimeoutRef.current = setTimeout(resolve, ms);
+    });
+  }
+
+  async function speakClip(text) {
+    const startedAt = Date.now();
+    const response = await fetch(`${WORKER_URL}/tts`, {
+      method: "POST",
+      body: JSON.stringify({ text, voiceId: ELEVENLABS_VOICE_ID }),
+    });
+    if (!response.ok) {
+      const errText = await response.text();
+      console.error("TTS request failed:", response.status, errText);
+      throw new Error(`Voice failed to load (status ${response.status}). Check the ElevenLabs key in your Worker.`);
+    }
+    const blob = await response.blob();
+    const url = URL.createObjectURL(blob);
+    speechUrlRef.current = url;
+    const audio = new Audio(url);
+    speechAudioRef.current = audio;
+    setVoiceLoading(false);
+    await new Promise((resolve) => {
+      audio.onended = resolve;
+      audio.play();
+    });
+    URL.revokeObjectURL(url);
+    return Date.now() - startedAt;
+  }
+
+  async function speakClipMinDuration(text, minMs) {
+    const elapsed = await speakClip(text);
+    if (elapsed < minMs) {
+      await wait(minMs - elapsed);
+    }
+  }
+
   async function speakMeditation() {
-    const sections = meditation.split(/\n\n+/).filter((s) => s.trim());
-    let i = 0;
     setVoiceError(null);
     setSpeaking(true);
     setVoiceLoading(true);
+    stopFlagRef.current = false;
 
-    async function speakNext() {
-      if (i >= sections.length) {
-        setSpeaking(false);
-        return;
-      }
-      try {
-        const response = await fetch(`${WORKER_URL}/tts`, {
-          method: "POST",
-          body: JSON.stringify({ text: sections[i], voiceId: ELEVENLABS_VOICE_ID }),
-        });
-        if (!response.ok) {
-          const errText = await response.text();
-          console.error("TTS request failed:", response.status, errText);
-          setVoiceError(`Voice failed to load (status ${response.status}). Check the ElevenLabs key in your Worker.`);
-          setSpeaking(false);
-          setVoiceLoading(false);
-          return;
+    const parts = meditationParts;
+    const beats = parts
+      ? [
+          { type: "speak", text: parts.inductionPre },
+          { type: "pause", ms: 1500 },
+          { type: "speakMin", text: parts.inductionCount, ms: 8000 },
+          { type: "pause", ms: 1200 },
+          { type: "speak", text: parts.inductionPost },
+          { type: "pause", ms: 2500 },
+          { type: "speak", text: parts.voidLight },
+          { type: "pause", ms: 3500 },
+          { type: "speak", text: parts.visualization },
+          { type: "pause", ms: 1800 },
+          { type: "speak", text: parts.anchor },
+          { type: "pause", ms: 2000 },
+          { type: "speak", text: parts.closingPre },
+          { type: "pause", ms: 1200 },
+          { type: "speakMin", text: parts.closingCount, ms: 8000 },
+          { type: "pause", ms: 1000 },
+          { type: "speak", text: parts.closingPost },
+          { type: "pause", ms: 2000 },
+          { type: "speak", text: parts.reminder },
+          { type: "pause", ms: 1800 },
+          { type: "speak", text: parts.reciprocity },
+        ]
+      : meditation.split(/\n\n+/).filter((s) => s.trim()).map((text) => ({ type: "speak", text }));
+
+    try {
+      for (const beat of beats) {
+        if (stopFlagRef.current) break;
+        if (beat.type === "pause") {
+          await wait(beat.ms);
+        } else if (beat.type === "speakMin") {
+          await speakClipMinDuration(beat.text, beat.ms);
+        } else {
+          await speakClip(beat.text);
         }
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        speechUrlRef.current = url;
-        const audio = new Audio(url);
-        speechAudioRef.current = audio;
-        setVoiceLoading(false);
-        audio.onended = () => {
-          URL.revokeObjectURL(url);
-          i += 1;
-          if (i < sections.length) {
-            setTimeout(speakNext, 1800);
-          } else {
-            setSpeaking(false);
-          }
-        };
-        audio.play();
-      } catch (e) {
-        setVoiceError("Voice failed to play. Check your connection and try again.");
-        setSpeaking(false);
-        setVoiceLoading(false);
       }
+    } catch (e) {
+      setVoiceError(e.message || "Voice failed to play. Check your connection and try again.");
+    } finally {
+      setSpeaking(false);
+      setVoiceLoading(false);
     }
-
-    speakNext();
   }
 
   function stopSpeaking() {
+    stopFlagRef.current = true;
+    if (speechTimeoutRef.current) {
+      clearTimeout(speechTimeoutRef.current);
+      speechTimeoutRef.current = null;
+    }
     if (speechAudioRef.current) {
       speechAudioRef.current.pause();
       speechAudioRef.current = null;
@@ -470,7 +533,6 @@ Repeat this practice daily, for the next eight days.`;
     }
     setSpeaking(false);
     setVoiceLoading(false);
-    setSpeaking(false);
   }
 
   async function confirmOathAndSave() {
@@ -478,7 +540,7 @@ Repeat this practice daily, for the next eight days.`;
       try {
         await window.storage.set(
           `meditation:${savedCode}`,
-          JSON.stringify({ goal, reading, meditation, email: emailInput, name: nameInput }),
+          JSON.stringify({ goal, reading, meditation, meditationParts, email: emailInput, name: nameInput }),
           false
         );
       } catch (e) {}
@@ -854,22 +916,33 @@ Repeat this practice daily, for the next eight days.`;
             {meditationParts ? (
               <div style={{ textAlign: "left", marginBottom: "2rem" }}>
                 <p style={{ color: "#f5ebee", lineHeight: 1.85, whiteSpace: "pre-line", marginBottom: "1.2rem" }}>
-                  {meditationParts.induction}
+                  {meditationParts.inductionPre}
+                  <br /><br />
+                  {meditationParts.inductionCount}
+                  <br /><br />
+                  {meditationParts.inductionPost}
+                </p>
+                <p style={{ color: "#f5ebee", lineHeight: 1.85, whiteSpace: "pre-line", marginBottom: "1.2rem" }}>
+                  {meditationParts.voidLight}
                 </p>
                 <p style={{ color: "#f5ebee", lineHeight: 1.85, whiteSpace: "pre-line", marginBottom: "1.2rem" }}>
                   {meditationParts.visualization}
                 </p>
+                <p style={{ color: "#f5ebee", lineHeight: 1.85, whiteSpace: "pre-line", marginBottom: "1.2rem" }}>
+                  <strong style={{ color: "#4dd8cc" }}>{meditationParts.anchor}</strong>
+                </p>
                 <p style={{ color: "#f5ebee", lineHeight: 1.85, whiteSpace: "pre-line" }}>
-                  Now, count to eight once more. With each number, rise gently back into
-                  this moment — still holding everything you just became.
+                  {meditationParts.closingPre}
                   <br /><br />
-                  One... two... three... four... five... six... seven... eight.
+                  {meditationParts.closingCount}
                   <br /><br />
-                  Open your eyes. Take a deep breath.
+                  {meditationParts.closingPost}
                   <br /><br />
                   <strong style={{ color: "#4dd8cc" }}>
-                    Repeat this practice daily, for the next eight days.
+                    {meditationParts.reminder}
                   </strong>
+                  <br /><br />
+                  {meditationParts.reciprocity}
                 </p>
               </div>
             ) : (
@@ -914,4 +987,5 @@ const root = ReactDOM.createRoot(container);
 root.render(<TarotDraw />);
 </script>
 </body>
+</html>
 </html>
