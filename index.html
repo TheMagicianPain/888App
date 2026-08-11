@@ -287,13 +287,15 @@ Respond ONLY with a JSON object, no markdown, no preamble:
 
       const inductionPre = `Before we begin — make sure you are not operating any machinery, and that you are seated safely in a quiet space.
 
-When you're ready, close your eyes.
+When you're ready, close your eyes.`;
 
-Take a slow breath in... and let it out.
+      const breathCycle = `Take a slow breath in... and let it out.`;
+      const breathCycleSSML = `Take a slow breath in.<break time="3.0s" /> And let it out.`;
 
-Now, count slowly to eight with me. With each number, feel your eyelids grow heavier... heavier... as if they are made of stone.`;
+      const inductionCountSetup = `Now, count slowly to eight with me. With each number, feel your eyelids grow heavier... heavier... as if they are made of stone.`;
 
       const inductionCount = `One... two... three... four... five... six... seven... eight.`;
+      const countSSML = `One.<break time="0.8s" /> Two.<break time="0.8s" /> Three.<break time="0.8s" /> Four.<break time="0.8s" /> Five.<break time="0.8s" /> Six.<break time="0.8s" /> Seven.<break time="0.8s" /> Eight.`;
 
       const inductionPost = `By now, they may feel too heavy to open. Try, gently — and notice just how heavy they've become.`;
 
@@ -312,6 +314,7 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
       const closingPre = `Now, let's count back to eight together. With each number, you'll rise gently back into this moment — still holding everything you just became.`;
 
       const closingCount = `One... two... three... four... five... six... seven... eight.`;
+      const closingCountSSML = `One.<break time="0.8s" /> Two.<break time="0.8s" /> Three.<break time="0.8s" /> Four.<break time="0.8s" /> Five.<break time="0.8s" /> Six.<break time="0.8s" /> Seven.<break time="0.8s" /> Eight.`;
 
       const closingPost = `Open your eyes. Take a deep breath.`;
 
@@ -319,11 +322,11 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
 
       const reciprocity = `This was given to you freely. If it moved something in you, consider offering eight dollars and eighty-eight cents back into the exchange. The law of reciprocity helps the universe respond to your own desires, and the number eight, eight, eight carries a resonance that summons your higher self.`;
 
-      const induction = `${inductionPre}\n\n${inductionCount}\n\n${inductionPost}`;
+      const induction = `${inductionPre}\n\n${breathCycle}\n\n${inductionCountSetup}\n\n${inductionCount}\n\n${inductionPost}`;
       const closing = `${closingPre}\n\n${closingCount}\n\n${closingPost}`;
 
       const fullMeditation = [induction, voidLight, parsed.visualization, anchor, closing, reminder, reciprocity].join("\n\n");
-      const parts = { inductionPre, inductionCount, inductionPost, voidLight, visualization: parsed.visualization, anchor, closingPre, closingCount, closingPost, reminder, reciprocity };
+      const parts = { inductionPre, breathCycle, breathCycleSSML, inductionCountSetup, inductionCount, countSSML, inductionPost, voidLight, visualization: parsed.visualization, anchor, closingPre, closingCount, closingCountSSML, closingPost, reminder, reciprocity };
 
       setMeditation(fullMeditation);
       setMeditationParts(parts);
@@ -422,7 +425,7 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
   async function fetchClipUrl(text) {
     const response = await fetch(`${WORKER_URL}/tts`, {
       method: "POST",
-      body: JSON.stringify({ text, voiceId: ELEVENLABS_VOICE_ID, speed: 0.7 }),
+      body: JSON.stringify({ text, voiceId: ELEVENLABS_VOICE_ID, speed: 0.85 }),
     });
     if (!response.ok) {
       const errText = await response.text();
@@ -445,26 +448,6 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
     return Date.now() - startedAt;
   }
 
-  async function speakCount(perNumberMs) {
-    const words = ["One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight"];
-    const cache = {};
-    cache[0] = fetchClipUrl(words[0]);
-
-    for (let i = 0; i < words.length; i++) {
-      if (stopFlagRef.current) break;
-      let url = await cache[i];
-      if (!url) url = await fetchClipUrl(words[i]);
-      if (i + 1 < words.length) {
-        cache[i + 1] = fetchClipUrl(words[i + 1]);
-      }
-      const elapsed = await playClipUrl(url);
-      URL.revokeObjectURL(url);
-      if (elapsed < perNumberMs) {
-        await wait(perNumberMs - elapsed);
-      }
-    }
-  }
-
   async function speakMeditation() {
     setVoiceError(null);
     setSpeaking(true);
@@ -476,7 +459,11 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
       ? [
           { type: "speak", text: parts.inductionPre },
           { type: "pause", ms: 1500 },
-          { type: "count", ms: 1000 },
+          { type: "speak", text: parts.breathCycleSSML },
+          { type: "pause", ms: 1500 },
+          { type: "speak", text: parts.inductionCountSetup },
+          { type: "pause", ms: 1200 },
+          { type: "speak", text: parts.countSSML },
           { type: "pause", ms: 1200 },
           { type: "speak", text: parts.inductionPost },
           { type: "pause", ms: 2500 },
@@ -488,7 +475,7 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
           { type: "pause", ms: 2000 },
           { type: "speak", text: parts.closingPre },
           { type: "pause", ms: 1200 },
-          { type: "count", ms: 1000 },
+          { type: "speak", text: parts.closingCountSSML },
           { type: "pause", ms: 1000 },
           { type: "speak", text: parts.closingPost },
           { type: "pause", ms: 2000 },
@@ -526,11 +513,6 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
         if (beat.type === "pause") {
           ensureFetching(nextSpeakIndex(idx + 1));
           await wait(beat.ms);
-          continue;
-        }
-
-        if (beat.type === "count") {
-          await speakCount(beat.ms);
           continue;
         }
 
@@ -942,6 +924,10 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
               <div style={{ textAlign: "left", marginBottom: "2rem" }}>
                 <p style={{ color: "#1C1C1E", lineHeight: 1.85, whiteSpace: "pre-line", marginBottom: "1.2rem" }}>
                   {meditationParts.inductionPre}
+                  <br /><br />
+                  {meditationParts.breathCycle}
+                  <br /><br />
+                  {meditationParts.inductionCountSetup}
                   <br /><br />
                   {meditationParts.inductionCount}
                   <br /><br />
