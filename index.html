@@ -106,10 +106,10 @@ function drawFrom(deck, count) {
 }
 
 const STEPS = [
-  { label: "Your Archetype", color: "#4dd8cc" },
-  { label: "What's Blocking You", color: "#e05a78" },
-  { label: "The Path Forward", color: "#2dd4bf" },
-  { label: "Who You Become", color: "#f5f6fa" },
+  { label: "Your Archetype", color: "#0D9488" },
+  { label: "What's Blocking You", color: "#DC2645" },
+  { label: "The Path Forward", color: "#14B8A6" },
+  { label: "Who You Become", color: "#7A2138" },
 ];
 
 const OATH = `I am ready to ascend. I release my old, lesser identity. I am ready to heal whatever curse still binds my spirit and my name.`;
@@ -141,8 +141,8 @@ function GlitterLayer({ count = 35 }) {
             width: d.size,
             height: d.size,
             borderRadius: "50%",
-            background: d.teal ? "#4dd8cc" : "#f5f6fa",
-            boxShadow: `0 0 ${d.size * 2.5}px ${d.teal ? "#4dd8cc" : "#f5f6fa"}`,
+            background: d.teal ? "#0D9488" : "#7A2138",
+            boxShadow: `0 0 ${d.size * 2.5}px ${d.teal ? "#0D9488" : "#7A2138"}`,
             animation: `glimmer ${d.duration}s ease-in-out ${d.delay}s infinite`,
           }}
         />
@@ -422,7 +422,7 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
   async function fetchClipUrl(text) {
     const response = await fetch(`${WORKER_URL}/tts`, {
       method: "POST",
-      body: JSON.stringify({ text, voiceId: ELEVENLABS_VOICE_ID }),
+      body: JSON.stringify({ text, voiceId: ELEVENLABS_VOICE_ID, speed: 0.7 }),
     });
     if (!response.ok) {
       const errText = await response.text();
@@ -445,6 +445,26 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
     return Date.now() - startedAt;
   }
 
+  async function speakCount(perNumberMs) {
+    const words = ["One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight"];
+    const cache = {};
+    cache[0] = fetchClipUrl(words[0]);
+
+    for (let i = 0; i < words.length; i++) {
+      if (stopFlagRef.current) break;
+      let url = await cache[i];
+      if (!url) url = await fetchClipUrl(words[i]);
+      if (i + 1 < words.length) {
+        cache[i + 1] = fetchClipUrl(words[i + 1]);
+      }
+      const elapsed = await playClipUrl(url);
+      URL.revokeObjectURL(url);
+      if (elapsed < perNumberMs) {
+        await wait(perNumberMs - elapsed);
+      }
+    }
+  }
+
   async function speakMeditation() {
     setVoiceError(null);
     setSpeaking(true);
@@ -456,7 +476,7 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
       ? [
           { type: "speak", text: parts.inductionPre },
           { type: "pause", ms: 1500 },
-          { type: "speakMin", text: parts.inductionCount, ms: 8000 },
+          { type: "count", ms: 1000 },
           { type: "pause", ms: 1200 },
           { type: "speak", text: parts.inductionPost },
           { type: "pause", ms: 2500 },
@@ -468,7 +488,7 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
           { type: "pause", ms: 2000 },
           { type: "speak", text: parts.closingPre },
           { type: "pause", ms: 1200 },
-          { type: "speakMin", text: parts.closingCount, ms: 8000 },
+          { type: "count", ms: 1000 },
           { type: "pause", ms: 1000 },
           { type: "speak", text: parts.closingPost },
           { type: "pause", ms: 2000 },
@@ -480,7 +500,7 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
 
     function nextSpeakIndex(fromIdx) {
       for (let i = fromIdx; i < beats.length; i++) {
-        if (beats[i].type === "speak" || beats[i].type === "speakMin") return i;
+        if (beats[i].type === "speak") return i;
       }
       return -1;
     }
@@ -493,7 +513,7 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
 
     try {
       const firstIdx = nextSpeakIndex(0);
-      if (firstClipPrefetchRef.current) {
+      if (firstClipPrefetchRef.current && beats[firstIdx] && beats[firstIdx].text === parts?.inductionPre) {
         fetchCache[firstIdx] = firstClipPrefetchRef.current;
         firstClipPrefetchRef.current = null;
       }
@@ -509,6 +529,11 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
           continue;
         }
 
+        if (beat.type === "count") {
+          await speakCount(beat.ms);
+          continue;
+        }
+
         ensureFetching(idx);
         let url = await fetchCache[idx];
         if (!url) {
@@ -516,12 +541,8 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
         }
         ensureFetching(nextSpeakIndex(idx + 1));
 
-        const elapsed = await playClipUrl(url);
+        await playClipUrl(url);
         URL.revokeObjectURL(url);
-
-        if (beat.type === "speakMin" && elapsed < beat.ms) {
-          await wait(beat.ms - elapsed);
-        }
       }
     } catch (e) {
       setVoiceError(e.message || "Voice failed to play. Check your connection and try again.");
@@ -562,8 +583,8 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
     <div
       style={{
         minHeight: "100vh",
-        background: "#2a0f18",
-        color: "#f5ebee",
+        background: "#F2F2F7",
+        color: "#1C1C1E",
         fontFamily: "'EB Garamond', Georgia, serif",
         display: "flex",
         flexDirection: "column",
@@ -576,9 +597,9 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=EB+Garamond:ital,wght@0,500;0,600;1,400&display=swap');
         .cinzel { font-family: 'Cinzel', serif; }
         .glow-btn {
-          background: linear-gradient(135deg, #0a3d38, #2dd4bf);
-          color: #03110f;
-          border: 1px solid rgba(238,240,244,0.15);
+          background: #0D9488;
+          color: #FFFFFF;
+          border: none;
           padding: 1em 2.2em;
           border-radius: 14px;
           font-family: 'Cinzel', serif;
@@ -587,14 +608,16 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
           letter-spacing: 0.1em;
           text-transform: uppercase;
           cursor: pointer;
-          transition: filter 0.2s ease;
+          transition: filter 0.2s ease, transform 0.1s ease;
+          box-shadow: 0 2px 8px rgba(13,148,136,0.35);
         }
-        .glow-btn:hover { filter: brightness(1.12); }
-        .glow-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .glow-btn:hover { filter: brightness(1.08); }
+        .glow-btn:active { transform: scale(0.98); }
+        .glow-btn:disabled { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
         .ghost-btn {
-          background: transparent;
-          color: #e8cdd3;
-          border: 1px solid rgba(232,205,211,0.35);
+          background: #FFFFFF;
+          color: #0D9488;
+          border: 1px solid rgba(0,0,0,0.1);
           padding: 0.9em 1.9em;
           border-radius: 14px;
           font-family: 'Cinzel', serif;
@@ -602,41 +625,44 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
           letter-spacing: 0.08em;
           text-transform: uppercase;
           cursor: pointer;
+          box-shadow: 0 1px 4px rgba(0,0,0,0.06);
         }
         .field {
           width: 100%;
-          background: #3a1620;
-          border: 1px solid rgba(232,205,211,0.3);
-          color: #f5ebee;
+          background: #FFFFFF;
+          border: 1px solid rgba(0,0,0,0.1);
+          color: #1C1C1E;
           padding: 1em 1.1em;
           border-radius: 12px;
           font-family: 'EB Garamond', serif;
           font-size: 1.15rem;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         }
         .pair-block {
-          border-radius: 12px;
+          border-radius: 14px;
           padding: 1.3rem 1.4rem;
           margin-bottom: 1rem;
           animation: riseIn 0.5s ease;
           text-align: left;
+          background: #FFFFFF;
+          box-shadow: 0 2px 10px rgba(0,0,0,0.06);
         }
         @keyframes riseIn { from { opacity:0; transform: translateY(10px);} to {opacity:1; transform:translateY(0);} }
         @media (prefers-reduced-motion: reduce) { .pair-block { animation: none; } }
         .audio-row { display:flex; gap:0.7rem; justify-content:center; margin-bottom:1.4rem; flex-wrap: wrap; }
         .audio-btn {
           display:flex; align-items:center; gap:0.4rem;
-          background:#3a1620; border:1px solid rgba(77,216,204,0.4);
-          color:#e8cdd3; padding:0.7em 1.2em; border-radius:24px;
+          background:#FFFFFF; border:1px solid rgba(0,0,0,0.1);
+          color:#1C1C1E; padding:0.7em 1.2em; border-radius:24px;
           font-family:'Cinzel',serif; font-size:0.78rem; letter-spacing:0.05em;
           text-transform:uppercase; cursor:pointer;
+          box-shadow: 0 1px 4px rgba(0,0,0,0.06);
         }
         p, li { font-size: 1.12rem; }
       `}</style>
 
-      <GlitterLayer />
-
       <div style={{ maxWidth: 560, width: "100%", textAlign: "center", position: "relative", zIndex: 1 }}>
-        <div className="cinzel" style={{ fontSize: "0.78rem", letterSpacing: "0.28em", color: "#4dd8cc", textTransform: "uppercase", marginBottom: "1.2rem" }}>
+        <div className="cinzel" style={{ fontSize: "0.78rem", letterSpacing: "0.28em", color: "#0D9488", textTransform: "uppercase", marginBottom: "1.2rem" }}>
           The Magician's Path
         </div>
 
@@ -645,12 +671,12 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
             <h1 className="cinzel" style={{ fontSize: "2.1rem", marginBottom: "1.2rem" }}>
               The Draw
             </h1>
-            <p style={{ color: "#e8cdd3", fontStyle: "italic", marginBottom: "1.2rem", lineHeight: 1.6 }}>
+            <p style={{ color: "#6E6E73", fontStyle: "italic", marginBottom: "1.2rem", lineHeight: 1.6 }}>
               We're going to do a tarot read together, gently, to help you see your
               true identity clearly — and what's been quietly standing between you
               and it.
             </p>
-            <p style={{ color: "#e8cdd3", marginBottom: "2rem", lineHeight: 1.6 }}>
+            <p style={{ color: "#6E6E73", marginBottom: "2rem", lineHeight: 1.6 }}>
               Afterward, you'll receive a free guided meditation to lovingly begin
               the alchemy — the identity transformation into the Magician, your
               fully embodied higher self — plus the full beginner's guide to the
@@ -667,11 +693,11 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
             <h2 className="cinzel" style={{ fontSize: "1.5rem", marginBottom: "1.4rem" }}>
               Who Are You At Your Highest Potential?
             </h2>
-            <p style={{ color: "#e8cdd3", fontStyle: "italic", marginBottom: "1.4rem", lineHeight: 1.6 }}>
-              Not a goal. Not an outcome. <strong style={{ color: "#f5ebee" }}>Let your imagination run free.</strong>{" "}
-              <strong style={{ color: "#f5ebee" }}>You are worthy, deserving, powerful, and capable of anything.</strong>
+            <p style={{ color: "#6E6E73", fontStyle: "italic", marginBottom: "1.4rem", lineHeight: 1.6 }}>
+              Not a goal. Not an outcome. <strong style={{ color: "#1C1C1E" }}>Let your imagination run free.</strong>{" "}
+              <strong style={{ color: "#1C1C1E" }}>You are worthy, deserving, powerful, and capable of anything.</strong>
             </p>
-            <p style={{ color: "#4dd8cc", fontSize: "0.95rem", marginBottom: "0.8rem", fontWeight: 700 }}>
+            <p style={{ color: "#0D9488", fontSize: "0.95rem", marginBottom: "0.8rem", fontWeight: 700 }}>
               Include as much detail as possible — the more specific you are, the more this reading can actually speak to you.
             </p>
             <textarea
@@ -699,7 +725,7 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
               That's okay. Close your eyes, and gently imagine who you'd be at
               your highest potential — with as few limitations as possible.
             </h2>
-            <p style={{ color: "#e8cdd3", fontStyle: "italic", marginBottom: "1.4rem" }}>
+            <p style={{ color: "#6E6E73", fontStyle: "italic", marginBottom: "1.4rem" }}>
               Now keep expanding it. Bigger. Freer. Push it until it feels almost
               unbelievable. When you have it, describe who that person is below.
             </p>
@@ -752,7 +778,7 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
                 <div
                   key={stepIdx}
                   className="pair-block"
-                  style={{ background: "#3a1620", border: `1.5px solid ${STEPS[stepIdx].color}88` }}
+                  style={{ background: "#FFFFFF", border: `1.5px solid ${STEPS[stepIdx].color}88` }}
                 >
                   <div className="cinzel" style={{ fontSize: "0.8rem", color: STEPS[stepIdx].color, letterSpacing: "0.1em", marginBottom: "0.7rem" }}>
                     {STEPS[stepIdx].label}
@@ -767,7 +793,7 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
                 </div>
               ))}
             </div>
-            <p style={{ color: "#4dd8cc", fontWeight: 700, fontSize: "1.15rem", marginBottom: "1.6rem" }}>
+            <p style={{ color: "#0D9488", fontWeight: 700, fontSize: "1.15rem", marginBottom: "1.6rem" }}>
               Your results are ready.
             </p>
             <input
@@ -800,14 +826,14 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
           <>
             {loading && (
               <div style={{ padding: "3rem 0" }}>
-                <Loader2 size={30} style={{ color: "#4dd8cc", animation: "spin 1.2s linear infinite" }} />
+                <Loader2 size={30} style={{ color: "#0D9488", animation: "spin 1.2s linear infinite" }} />
                 <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-                <p style={{ color: "#e8cdd3", fontStyle: "italic", marginTop: "1rem" }}>Reading the cards...</p>
+                <p style={{ color: "#6E6E73", fontStyle: "italic", marginTop: "1rem" }}>Reading the cards...</p>
               </div>
             )}
             {error && (
               <>
-                <p style={{ color: "#e05a78", marginBottom: "1rem" }}>{error}</p>
+                <p style={{ color: "#DC2645", marginBottom: "1rem" }}>{error}</p>
                 <button className="glow-btn" onClick={() => generateReading(goal)}>Try Again</button>
               </>
             )}
@@ -815,19 +841,19 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
               <>
                 <h2 className="cinzel" style={{ fontSize: "1.4rem", marginBottom: "1.2rem" }}>Your Reading</h2>
                 {savedCode && (
-                  <p style={{ background: "rgba(77,216,204,0.12)", border: "1px solid rgba(77,216,204,0.4)", borderRadius: 10, padding: "0.8rem 1rem", color: "#4dd8cc", fontWeight: 700, fontSize: "1rem", marginBottom: "1.4rem" }}>
+                  <p style={{ background: "rgba(13,148,136,0.08)", border: "1px solid rgba(13,148,136,0.35)", borderRadius: 10, padding: "0.8rem 1rem", color: "#0D9488", fontWeight: 700, fontSize: "1rem", marginBottom: "1.4rem" }}>
                     Copy this page's link now — it's already saved, and brings you straight back to this exact reading anytime.
                   </p>
                 )}
                 <div style={{ textAlign: "left", marginBottom: "1.6rem" }}>
                   <div className="cinzel" style={{ fontSize: "0.85rem", color: STEPS[0].color, letterSpacing: "0.08em", marginBottom: "0.4rem" }}>{STEPS[0].label}</div>
-                  <p style={{ color: "#f5ebee", lineHeight: 1.75, marginBottom: "1.3rem" }}>{reading.archetype}</p>
+                  <p style={{ color: "#1C1C1E", lineHeight: 1.75, marginBottom: "1.3rem" }}>{reading.archetype}</p>
                   <div className="cinzel" style={{ fontSize: "0.85rem", color: STEPS[1].color, letterSpacing: "0.08em", marginBottom: "0.4rem" }}>{STEPS[1].label}</div>
-                  <p style={{ color: "#f5ebee", lineHeight: 1.75, marginBottom: "1.3rem" }}>{reading.blocking}</p>
+                  <p style={{ color: "#1C1C1E", lineHeight: 1.75, marginBottom: "1.3rem" }}>{reading.blocking}</p>
                   <div className="cinzel" style={{ fontSize: "0.85rem", color: STEPS[2].color, letterSpacing: "0.08em", marginBottom: "0.4rem" }}>{STEPS[2].label}</div>
-                  <p style={{ color: "#f5ebee", lineHeight: 1.75, marginBottom: "1.3rem" }}>{reading.pathForward}</p>
+                  <p style={{ color: "#1C1C1E", lineHeight: 1.75, marginBottom: "1.3rem" }}>{reading.pathForward}</p>
                   <div className="cinzel" style={{ fontSize: "0.85rem", color: STEPS[3].color, letterSpacing: "0.08em", marginBottom: "0.4rem" }}>{STEPS[3].label}</div>
-                  <p style={{ color: "#f5ebee", lineHeight: 1.75 }}>{reading.whoYouBecome}</p>
+                  <p style={{ color: "#1C1C1E", lineHeight: 1.75 }}>{reading.whoYouBecome}</p>
                 </div>
                 <button className="glow-btn" onClick={() => setStage("oath")}>
                   Receive Your Meditation
@@ -842,14 +868,14 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
             <h2 className="cinzel" style={{ fontSize: "1.4rem", marginBottom: "1.2rem" }}>
               Speak This Aloud
             </h2>
-            <div style={{ background: "#3a1620", border: "1px solid rgba(77,216,204,0.35)", borderRadius: 14, padding: "1.6rem", marginBottom: "1.6rem" }}>
-              <p style={{ fontStyle: "italic", color: "#f5ebee", fontSize: "1.2rem", lineHeight: 1.7, margin: 0 }}>
+            <div style={{ background: "#FFFFFF", border: "1px solid rgba(13,148,136,0.3)", borderRadius: 14, padding: "1.6rem", marginBottom: "1.6rem" }}>
+              <p style={{ fontStyle: "italic", color: "#1C1C1E", fontSize: "1.2rem", lineHeight: 1.7, margin: 0 }}>
                 "{OATH}"
               </p>
             </div>
             <label style={{ display: "flex", alignItems: "center", gap: "0.7rem", justifyContent: "center", marginBottom: "1.6rem", cursor: "pointer" }}>
               <input type="checkbox" checked={oathChecked} onChange={(e) => setOathChecked(e.target.checked)} style={{ width: 20, height: 20 }} />
-              <span style={{ color: "#e8cdd3" }}>I have spoken this aloud</span>
+              <span style={{ color: "#6E6E73" }}>I have spoken this aloud</span>
             </label>
             <button
               className="glow-btn"
@@ -864,23 +890,23 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
         {stage === "meditation" && unlocked && (
           <>
             <h2 className="cinzel" style={{ fontSize: "1.4rem", marginBottom: "1rem" }}>Your Meditation</h2>
-            <p style={{ color: "#e8cdd3", marginBottom: "1rem", fontStyle: "italic" }}>
+            <p style={{ color: "#6E6E73", marginBottom: "1rem", fontStyle: "italic" }}>
               Sit down. Get comfortable. Let yourself settle in fully. Make sure
               you are not operating any machinery.
             </p>
             {savedCode && (
-              <p style={{ background: "rgba(77,216,204,0.12)", border: "1px solid rgba(77,216,204,0.4)", borderRadius: 10, padding: "0.8rem 1rem", color: "#4dd8cc", fontWeight: 700, fontSize: "1rem", marginBottom: "1.2rem" }}>
+              <p style={{ background: "rgba(13,148,136,0.08)", border: "1px solid rgba(13,148,136,0.35)", borderRadius: 10, padding: "0.8rem 1rem", color: "#0D9488", fontWeight: 700, fontSize: "1rem", marginBottom: "1.2rem" }}>
                 Copy this page's link now — it's your way back, every day, for the next eight days.
               </p>
             )}
             {voiceError && (
-              <p style={{ color: "#e05a78", fontSize: "0.9rem", marginBottom: "1rem" }}>
+              <p style={{ color: "#DC2645", fontSize: "0.9rem", marginBottom: "1rem" }}>
                 {voiceError}
               </p>
             )}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.7rem", marginBottom: "1.2rem" }}>
-              <Volume2 size={14} style={{ color: "#e8cdd3" }} />
-              <span style={{ color: "#e8cdd3", fontSize: "0.85rem" }}>Music Volume</span>
+              <Volume2 size={14} style={{ color: "#6E6E73" }} />
+              <span style={{ color: "#6E6E73", fontSize: "0.85rem" }}>Music Volume</span>
               <input
                 type="range"
                 min="0"
@@ -890,7 +916,7 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
                 onChange={(e) => handleVolumeChange(Number(e.target.value))}
                 style={{ width: 160 }}
               />
-              <span style={{ color: "#e8cdd3", fontSize: "0.85rem" }}>{Math.round(toneVolume * 100)}%</span>
+              <span style={{ color: "#6E6E73", fontSize: "0.85rem" }}>{Math.round(toneVolume * 100)}%</span>
             </div>
             <div className="audio-row">
               <button className="audio-btn" onClick={speaking ? stopSpeaking : speakMeditation}>
@@ -914,30 +940,30 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
             </div>
             {meditationParts ? (
               <div style={{ textAlign: "left", marginBottom: "2rem" }}>
-                <p style={{ color: "#f5ebee", lineHeight: 1.85, whiteSpace: "pre-line", marginBottom: "1.2rem" }}>
+                <p style={{ color: "#1C1C1E", lineHeight: 1.85, whiteSpace: "pre-line", marginBottom: "1.2rem" }}>
                   {meditationParts.inductionPre}
                   <br /><br />
                   {meditationParts.inductionCount}
                   <br /><br />
                   {meditationParts.inductionPost}
                 </p>
-                <p style={{ color: "#f5ebee", lineHeight: 1.85, whiteSpace: "pre-line", marginBottom: "1.2rem" }}>
+                <p style={{ color: "#1C1C1E", lineHeight: 1.85, whiteSpace: "pre-line", marginBottom: "1.2rem" }}>
                   {meditationParts.voidLight}
                 </p>
-                <p style={{ color: "#f5ebee", lineHeight: 1.85, whiteSpace: "pre-line", marginBottom: "1.2rem" }}>
+                <p style={{ color: "#1C1C1E", lineHeight: 1.85, whiteSpace: "pre-line", marginBottom: "1.2rem" }}>
                   {meditationParts.visualization}
                 </p>
-                <p style={{ color: "#f5ebee", lineHeight: 1.85, whiteSpace: "pre-line", marginBottom: "1.2rem" }}>
-                  <strong style={{ color: "#4dd8cc" }}>{meditationParts.anchor}</strong>
+                <p style={{ color: "#1C1C1E", lineHeight: 1.85, whiteSpace: "pre-line", marginBottom: "1.2rem" }}>
+                  <strong style={{ color: "#0D9488" }}>{meditationParts.anchor}</strong>
                 </p>
-                <p style={{ color: "#f5ebee", lineHeight: 1.85, whiteSpace: "pre-line" }}>
+                <p style={{ color: "#1C1C1E", lineHeight: 1.85, whiteSpace: "pre-line" }}>
                   {meditationParts.closingPre}
                   <br /><br />
                   {meditationParts.closingCount}
                   <br /><br />
                   {meditationParts.closingPost}
                   <br /><br />
-                  <strong style={{ color: "#4dd8cc" }}>
+                  <strong style={{ color: "#0D9488" }}>
                     {meditationParts.reminder}
                   </strong>
                   <br /><br />
@@ -945,12 +971,12 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
                 </p>
               </div>
             ) : (
-              <p style={{ color: "#f5ebee", lineHeight: 1.85, textAlign: "left", whiteSpace: "pre-line", marginBottom: "2rem" }}>
+              <p style={{ color: "#1C1C1E", lineHeight: 1.85, textAlign: "left", whiteSpace: "pre-line", marginBottom: "2rem" }}>
                 {meditation}
               </p>
             )}
-            <div style={{ background: "#3a1620", border: "1px solid rgba(77,216,204,0.3)", borderRadius: 14, padding: "1.3rem 1.5rem", marginBottom: "1.8rem" }}>
-              <p style={{ color: "#e8cdd3", fontStyle: "italic", marginBottom: "0.9rem" }}>
+            <div style={{ background: "#FFFFFF", border: "1px solid rgba(13,148,136,0.25)", borderRadius: 14, padding: "1.3rem 1.5rem", marginBottom: "1.8rem" }}>
+              <p style={{ color: "#6E6E73", fontStyle: "italic", marginBottom: "0.9rem" }}>
                 This is free. If it moved something in you, consider sending $8.88 back
                 into the exchange — the law of reciprocity helps the universe respond to
                 your desires, and the number 888 carries a resonance that summons your
@@ -966,11 +992,11 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
                 Send $8.88
               </a>
             </div>
-            <p style={{ color: "#e8cdd3", fontStyle: "italic", marginBottom: "0.8rem" }}>
+            <p style={{ color: "#6E6E73", fontStyle: "italic", marginBottom: "0.8rem" }}>
               Your full beginner's guide, and an opportunity to go deeper into your
               new identity, has been sent to your email.
             </p>
-            <p style={{ color: "#4dd8cc", fontWeight: 700 }}>
+            <p style={{ color: "#0D9488", fontWeight: 700 }}>
               One last reminder — save this page's link now, so you can return to
               your meditation every day, for the next eight days.
             </p>
