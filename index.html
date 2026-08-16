@@ -183,25 +183,50 @@ function TarotDraw() {
   const stopFlagRef = useRef(false);
   const firstClipPrefetchRef = useRef(null);
 
+  async function compressToParam(obj) {
+    const json = JSON.stringify(obj);
+    const bytes = new TextEncoder().encode(json);
+    const cs = new CompressionStream("gzip");
+    const writer = cs.writable.getWriter();
+    writer.write(bytes);
+    writer.close();
+    const compressed = await new Response(cs.readable).arrayBuffer();
+    let binary = "";
+    const arr = new Uint8Array(compressed);
+    for (let i = 0; i < arr.length; i++) binary += String.fromCharCode(arr[i]);
+    return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+
+  async function decompressFromParam(param) {
+    const b64 = param.replace(/-/g, "+").replace(/_/g, "/");
+    const binary = atob(b64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const ds = new DecompressionStream("gzip");
+    const writer = ds.writable.getWriter();
+    writer.write(bytes);
+    writer.close();
+    const decompressed = await new Response(ds.readable).arrayBuffer();
+    const json = new TextDecoder().decode(decompressed);
+    return JSON.parse(json);
+  }
+
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const code = params.get("m");
-    if (code) {
-      window.storage
-        .get(`meditation:${code}`, false)
-        .then((res) => {
-          if (res && res.value) {
-            const saved = JSON.parse(res.value);
-            setGoal(saved.goal);
-            setReading(saved.reading);
-            setMeditation(saved.meditation);
-            setMeditationParts(saved.meditationParts || null);
-            setSavedCode(code);
-            setUnlocked(true);
-            setStage("meditation");
-          }
+    const d = params.get("d");
+    if (d) {
+      decompressFromParam(d)
+        .then((saved) => {
+          setGoal(saved.goal);
+          setReading(saved.reading);
+          setMeditation(saved.meditation);
+          setMeditationParts(saved.meditationParts || null);
+          setUnlocked(true);
+          setStage("meditation");
         })
-        .catch(() => {});
+        .catch((e) => {
+          console.error("Failed to restore saved meditation:", e);
+        });
     }
   }, []);
 
@@ -331,18 +356,15 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
       setMeditation(fullMeditation);
       setMeditationParts(parts);
 
-      const code = Math.random().toString(36).slice(2, 8);
       try {
-        await window.storage.set(
-          `meditation:${code}`,
-          JSON.stringify({ goal, reading: parsed, meditation: fullMeditation, meditationParts: parts, email: emailInput, name: nameInput }),
-          false
-        );
-        setSavedCode(code);
+        const encoded = await compressToParam({ goal, reading: parsed, meditation: fullMeditation, meditationParts: parts });
         const url = new URL(window.location.href);
-        url.searchParams.set("m", code);
+        url.searchParams.set("d", encoded);
         window.history.replaceState({}, "", url);
-      } catch (e) {}
+        setSavedCode("saved");
+      } catch (e) {
+        console.error("Failed to encode save link:", e);
+      }
     } catch (e) {
       setError("The reading couldn't be generated. Try again in a moment.");
     } finally {
