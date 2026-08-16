@@ -152,6 +152,53 @@ function GlitterLayer({ count = 35 }) {
   );
 }
 
+function buildMeditation(visualization) {
+  const inductionPre = `Before we begin — make sure you are not operating any machinery, and that you are seated safely in a quiet space.
+
+When you're ready, close your eyes.`;
+
+  const breathCycle = `Take a slow breath in... and let it out.`;
+  const breathCycleSSML = `Take a slow breath in.<break time="3.0s" /> And let it out.`;
+
+  const inductionCountSetup = `Now, count slowly to eight with me. With each number, feel your eyelids grow heavier... heavier... as if they are made of stone.`;
+
+  const inductionCount = `One... two... three... four... five... six... seven... eight.`;
+  const countSSML = `One.<break time="0.8s" /> Two.<break time="0.8s" /> Three.<break time="0.8s" /> Four.<break time="0.8s" /> Five.<break time="0.8s" /> Six.<break time="0.8s" /> Seven.<break time="0.8s" /> Eight.`;
+
+  const inductionPost = `By now, they may feel too heavy to open. Try, gently — and notice just how heavy they've become.`;
+
+  const voidLight = `Imagine yourself inside a black void. But it isn't empty — it's warm. Comforting. Completely safe. You are held here, fully, by love itself.
+
+In the distance, a single point of light appears. Bright white. Slowly, it begins to move toward you.
+
+It grows brighter... and brighter... until it completely surrounds you, consuming you entirely in its light.
+
+Feel its warmth now — not just on your skin, but inside you. Inside every cell of your body. Healing, as it moves through you.
+
+...Silence.`;
+
+  const anchor = `From this moment forward — anytime you say the number eight, eight, eight, or hear it spoken by someone else, this exact feeling becomes immediately available to you again.`;
+
+  const closingPre = `Now, let's count back to eight together. With each number, you'll rise gently back into this moment — still holding everything you just became.`;
+
+  const closingCount = `One... two... three... four... five... six... seven... eight.`;
+  const closingCountSSML = `One.<break time="0.8s" /> Two.<break time="0.8s" /> Three.<break time="0.8s" /> Four.<break time="0.8s" /> Five.<break time="0.8s" /> Six.<break time="0.8s" /> Seven.<break time="0.8s" /> Eight.`;
+
+  const closingPost = `Open your eyes. Take a deep breath.`;
+
+  const reminder = `Repeat this practice daily, for the next eight days. Make sure to save this page's link, so you can return to it — and to this exact meditation — every day.`;
+
+  const reciprocity = `This was given to you freely. If it moved something in you, consider offering eight dollars and eighty-eight cents back into the exchange. The law of reciprocity helps the universe respond to your own desires, and the number eight, eight, eight carries a resonance that summons your higher self.`;
+
+  const induction = `${inductionPre}\n\n${breathCycle}\n\n${inductionCountSetup}\n\n${inductionCount}\n\n${inductionPost}`;
+  const closing = `${closingPre}\n\n${closingCount}\n\n${closingPost}`;
+
+  const fullMeditation = [induction, voidLight, visualization, anchor, closing, reminder, reciprocity].join("\n\n");
+  const parts = { inductionPre, breathCycle, breathCycleSSML, inductionCountSetup, inductionCount, countSSML, inductionPost, voidLight, visualization, anchor, closingPre, closingCount, closingCountSSML, closingPost, reminder, reciprocity };
+
+  return { fullMeditation, parts };
+}
+
 function TarotDraw() {
   const [stage, setStage] = useState("intro");
   const [goal, setGoal] = useState("");
@@ -206,10 +253,11 @@ function TarotDraw() {
     if (d) {
       try {
         const saved = decodeFromParam(d);
+        const built = buildMeditation(saved.visualization);
         setGoal(saved.goal);
         setReading(saved.reading);
-        setMeditation(saved.meditation);
-        setMeditationParts(saved.meditationParts || null);
+        setMeditation(built.fullMeditation);
+        setMeditationParts(built.parts);
         setUnlocked(true);
         setStage("meditation");
       } catch (e) {
@@ -299,54 +347,12 @@ Respond ONLY with a JSON object, no markdown, no preamble:
         whoYouBecome: parsed.whoYouBecome,
       });
 
-      const inductionPre = `Before we begin — make sure you are not operating any machinery, and that you are seated safely in a quiet space.
-
-When you're ready, close your eyes.`;
-
-      const breathCycle = `Take a slow breath in... and let it out.`;
-      const breathCycleSSML = `Take a slow breath in.<break time="3.0s" /> And let it out.`;
-
-      const inductionCountSetup = `Now, count slowly to eight with me. With each number, feel your eyelids grow heavier... heavier... as if they are made of stone.`;
-
-      const inductionCount = `One... two... three... four... five... six... seven... eight.`;
-      const countSSML = `One.<break time="0.8s" /> Two.<break time="0.8s" /> Three.<break time="0.8s" /> Four.<break time="0.8s" /> Five.<break time="0.8s" /> Six.<break time="0.8s" /> Seven.<break time="0.8s" /> Eight.`;
-
-      const inductionPost = `By now, they may feel too heavy to open. Try, gently — and notice just how heavy they've become.`;
-
-      const voidLight = `Imagine yourself inside a black void. But it isn't empty — it's warm. Comforting. Completely safe. You are held here, fully, by love itself.
-
-In the distance, a single point of light appears. Bright white. Slowly, it begins to move toward you.
-
-It grows brighter... and brighter... until it completely surrounds you, consuming you entirely in its light.
-
-Feel its warmth now — not just on your skin, but inside you. Inside every cell of your body. Healing, as it moves through you.
-
-...Silence.`;
-
-      const anchor = `From this moment forward — anytime you say the number eight, eight, eight, or hear it spoken by someone else, this exact feeling becomes immediately available to you again.`;
-
-      const closingPre = `Now, let's count back to eight together. With each number, you'll rise gently back into this moment — still holding everything you just became.`;
-
-      const closingCount = `One... two... three... four... five... six... seven... eight.`;
-      const closingCountSSML = `One.<break time="0.8s" /> Two.<break time="0.8s" /> Three.<break time="0.8s" /> Four.<break time="0.8s" /> Five.<break time="0.8s" /> Six.<break time="0.8s" /> Seven.<break time="0.8s" /> Eight.`;
-
-      const closingPost = `Open your eyes. Take a deep breath.`;
-
-      const reminder = `Repeat this practice daily, for the next eight days. Make sure to save this page's link, so you can return to it — and to this exact meditation — every day.`;
-
-      const reciprocity = `This was given to you freely. If it moved something in you, consider offering eight dollars and eighty-eight cents back into the exchange. The law of reciprocity helps the universe respond to your own desires, and the number eight, eight, eight carries a resonance that summons your higher self.`;
-
-      const induction = `${inductionPre}\n\n${breathCycle}\n\n${inductionCountSetup}\n\n${inductionCount}\n\n${inductionPost}`;
-      const closing = `${closingPre}\n\n${closingCount}\n\n${closingPost}`;
-
-      const fullMeditation = [induction, voidLight, parsed.visualization, anchor, closing, reminder, reciprocity].join("\n\n");
-      const parts = { inductionPre, breathCycle, breathCycleSSML, inductionCountSetup, inductionCount, countSSML, inductionPost, voidLight, visualization: parsed.visualization, anchor, closingPre, closingCount, closingCountSSML, closingPost, reminder, reciprocity };
-
-      setMeditation(fullMeditation);
-      setMeditationParts(parts);
+      const built = buildMeditation(parsed.visualization);
+      setMeditation(built.fullMeditation);
+      setMeditationParts(built.parts);
 
       try {
-        const encoded = encodeToParam({ goal, reading: parsed, meditation: fullMeditation, meditationParts: parts });
+        const encoded = encodeToParam({ goal, reading: parsed, visualization: parsed.visualization });
         const url = new URL(window.location.href);
         url.searchParams.set("d", encoded);
         window.history.replaceState({}, "", url);
