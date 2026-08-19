@@ -229,6 +229,7 @@ function TarotDraw() {
   const speechTimeoutRef = useRef(null);
   const stopFlagRef = useRef(false);
   const firstClipPrefetchRef = useRef(null);
+  const donationRef = useRef(null);
 
   function encodeToParam(obj) {
     const json = JSON.stringify(obj);
@@ -549,6 +550,9 @@ Respond ONLY with a JSON object, no markdown, no preamble:
     } finally {
       setSpeaking(false);
       setVoiceLoading(false);
+      if (donationRef.current) {
+        donationRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
     }
   }
 
@@ -979,9 +983,9 @@ Respond ONLY with a JSON object, no markdown, no preamble:
                 {meditation}
               </p>
             )}
-            <div style={{ background: "#FFFFFF", border: "1px solid rgba(13,148,136,0.25)", borderRadius: 14, padding: "1.3rem 1.5rem", marginBottom: "1.8rem" }}>
+            <div ref={donationRef} style={{ background: "#FFFFFF", border: "1px solid rgba(13,148,136,0.25)", borderRadius: 14, padding: "1.3rem 1.5rem", marginBottom: "1.8rem" }}>
               <p style={{ color: "#6E6E73", fontStyle: "italic", marginBottom: "0.9rem" }}>
-                This is free. If it moved something in you, consider sending $8.88 back
+                If this moved something in you, consider sending $8.88 back
                 into the exchange — the law of reciprocity helps the universe respond to
                 your desires, and the number 888 carries a resonance that summons your
                 higher self.
@@ -990,7 +994,7 @@ Respond ONLY with a JSON object, no markdown, no preamble:
                 href="https://buy.stripe.com/bJeaEX1eO8BactZ8tidAk02"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="ghost-btn"
+                className="glow-btn"
                 style={{ textDecoration: "none", display: "inline-block" }}
               >
                 Send $8.88
