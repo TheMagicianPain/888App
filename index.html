@@ -572,6 +572,9 @@ Respond ONLY with a JSON object, no markdown, no preamble:
     }
     setSpeaking(false);
     setVoiceLoading(false);
+    if (donationRef.current) {
+      donationRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
   }
 
   function confirmOathAndSave() {
