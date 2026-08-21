@@ -441,7 +441,66 @@ Respond ONLY with a JSON object, no markdown, no preamble:
     });
   }
 
+  // --- Audio cache (IndexedDB) so replaying the same saved meditation ---
+  // --- never calls ElevenLabs / costs money again after the first time. ---
+  const AUDIO_DB_NAME = 'magi_audio_cache';
+  const AUDIO_STORE = 'clips';
+  let audioDbPromise = null;
+
+  function openAudioDb() {
+    if (audioDbPromise) return audioDbPromise;
+    audioDbPromise = new Promise((resolve, reject) => {
+      const req = indexedDB.open(AUDIO_DB_NAME, 1);
+      req.onupgradeneeded = () => {
+        req.result.createObjectStore(AUDIO_STORE);
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+    return audioDbPromise;
+  }
+
+  async function hashText(text) {
+    const enc = new TextEncoder().encode(text);
+    const digest = await crypto.subtle.digest('SHA-256', enc);
+    return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('');
+  }
+
+  async function getCachedClip(key) {
+    try {
+      const db = await openAudioDb();
+      return await new Promise((resolve) => {
+        const tx = db.transaction(AUDIO_STORE, 'readonly');
+        const req = tx.objectStore(AUDIO_STORE).get(key);
+        req.onsuccess = () => resolve(req.result || null);
+        req.onerror = () => resolve(null);
+      });
+    } catch (e) {
+      return null; // caching is a nice-to-have; never block playback on it
+    }
+  }
+
+  async function setCachedClip(key, blob) {
+    try {
+      const db = await openAudioDb();
+      await new Promise((resolve) => {
+        const tx = db.transaction(AUDIO_STORE, 'readwrite');
+        tx.objectStore(AUDIO_STORE).put(blob, key);
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => resolve();
+      });
+    } catch (e) {
+      // fail silently — same reasoning as above
+    }
+  }
+
   async function fetchClipUrl(text) {
+    const cacheKey = await hashText(text);
+    const cached = await getCachedClip(cacheKey);
+    if (cached) {
+      return URL.createObjectURL(cached);
+    }
+
     const response = await fetch(`${WORKER_URL}/tts`, {
       method: "POST",
       body: JSON.stringify({ text, voiceId: ELEVENLABS_VOICE_ID, speed: 0.85 }),
@@ -452,6 +511,7 @@ Respond ONLY with a JSON object, no markdown, no preamble:
       throw new Error(`Voice failed to load (status ${response.status}). Check the ElevenLabs key in your Worker.`);
     }
     const blob = await response.blob();
+    setCachedClip(cacheKey, blob); // fire-and-forget, don't block playback on the write
     return URL.createObjectURL(blob);
   }
 
