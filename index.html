@@ -376,6 +376,22 @@ Respond ONLY with a JSON object, no markdown, no preamble:
     }
     const ctx = audioCtxRef.current;
 
+    if (ctx.state === "suspended") {
+      try {
+        await ctx.resume();
+      } catch (e) {
+        // Still locked — browser requires a real tap. We check ctx.state below either way.
+      }
+    }
+
+    // A tone graph may already exist from an earlier blocked attempt (e.g. the
+    // automatic call on page load). Don't create a second one — just reflect
+    // whether it's actually audible now that a real user gesture may have unlocked it.
+    if (oscRef.current) {
+      setTonePlaying(ctx.state === "running");
+      return;
+    }
+
     if (CUSTOM_TONE_URL) {
       try {
         const response = await fetch(CUSTOM_TONE_URL);
@@ -392,7 +408,7 @@ Respond ONLY with a JSON object, no markdown, no preamble:
         source.start();
         oscRef.current = source;
         gainRef.current = gain;
-        setTonePlaying(true);
+        setTonePlaying(ctx.state === "running");
       } catch (e) {
         setVoiceError("Healing tone failed to load.");
       }
@@ -410,7 +426,7 @@ Respond ONLY with a JSON object, no markdown, no preamble:
     osc.start();
     oscRef.current = osc;
     gainRef.current = gain;
-    setTonePlaying(true);
+    setTonePlaying(ctx.state === "running");
   }
 
   function handleVolumeChange(newVal) {
@@ -499,9 +515,11 @@ Respond ONLY with a JSON object, no markdown, no preamble:
     const cacheKey = await hashText(text);
     const cached = await getCachedClip(cacheKey);
     if (cached) {
+      console.log(`%c[cache HIT]%c no ElevenLabs call — served from IndexedDB (key ${cacheKey.slice(0, 8)}…)`, "color:#0D9488;font-weight:bold", "color:inherit");
       return URL.createObjectURL(cached);
     }
 
+    console.log(`%c[cache MISS]%c calling ElevenLabs now (key ${cacheKey.slice(0, 8)}…) — will be cached for next time`, "color:#DC2645;font-weight:bold", "color:inherit");
     const response = await fetch(`${WORKER_URL}/tts`, {
       method: "POST",
       body: JSON.stringify({ text, voiceId: ELEVENLABS_VOICE_ID, speed: 0.85 }),
