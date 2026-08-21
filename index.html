@@ -261,6 +261,7 @@ function TarotDraw() {
         setMeditationParts(built.parts);
         setUnlocked(true);
         setStage("meditation");
+        startTone();
       } catch (e) {
         console.error("Failed to restore saved meditation:", e);
         setVoiceError("This saved link couldn't be loaded. It may be corrupted or incomplete.");
@@ -972,8 +973,15 @@ Respond ONLY with a JSON object, no markdown, no preamble:
               </p>
             )}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.7rem", marginBottom: "1.2rem" }}>
+              <button
+                className="audio-btn"
+                onClick={tonePlaying ? stopTone : startTone}
+                style={{ padding: "0.5em 0.9em" }}
+              >
+                {tonePlaying ? <Square size={13} /> : <Play size={13} />}
+                {tonePlaying ? "Pause Tone" : "Play Healing Tone"}
+              </button>
               <Volume2 size={14} style={{ color: "#6E6E73" }} />
-              <span style={{ color: "#6E6E73", fontSize: "0.85rem" }}>Music Volume</span>
               <input
                 type="range"
                 min="0"
@@ -981,7 +989,7 @@ Respond ONLY with a JSON object, no markdown, no preamble:
                 step="0.02"
                 value={toneVolume}
                 onChange={(e) => handleVolumeChange(Number(e.target.value))}
-                style={{ width: 160 }}
+                style={{ width: 120 }}
               />
               <span style={{ color: "#6E6E73", fontSize: "0.85rem" }}>{Math.round(toneVolume * 100)}%</span>
             </div>
