@@ -1267,23 +1267,31 @@ Respond ONLY with a JSON object, no markdown, no preamble:
             )}
             <div ref={donationRef} style={{ background: "#FFFFFF", border: "1px solid rgba(13,148,136,0.25)", borderRadius: 14, padding: "1.3rem 1.5rem", marginBottom: "1.8rem" }}>
               <p style={{ color: "#6E6E73", fontStyle: "italic", marginBottom: "0.9rem" }}>
-                If this moved something in you, consider sending $8.88 back
-                into the exchange — the law of reciprocity helps the universe respond to
-                your desires, and the number 888 carries a resonance that summons your
-                higher self.
+                Optional — amplify your intention by reciprocating energy.
+                The number 888 also resonates with abundance and the higher self.
               </p>
               {paymentSucceeded ? (
                 <p style={{ color: "#0D9488", fontWeight: 700 }}>Thank you 🙏 — received.</p>
-              ) : !showPayment ? (
-                <button className="glow-btn" onClick={handleStartPayment} disabled={paymentLoading}>
-                  {paymentLoading ? "Loading..." : "Send $8.88"}
-                </button>
               ) : (
                 <div style={{ textAlign: "left" }}>
-                  <div id="payment-element-mount" style={{ marginBottom: "1rem" }}></div>
-                  <button className="glow-btn" onClick={handleConfirmPayment} disabled={paymentLoading}>
-                    {paymentLoading ? "Processing..." : "Confirm $8.88"}
-                  </button>
+                  <div
+                    id="payment-element-mount"
+                    style={{ marginBottom: showPayment ? "1rem" : 0, display: showPayment ? "block" : "none" }}
+                  ></div>
+                  {!showPayment ? (
+                    <button
+                      className="glow-btn"
+                      onClick={handleStartPayment}
+                      disabled={paymentLoading}
+                      style={{ display: "block", margin: "0 auto" }}
+                    >
+                      {paymentLoading ? "Loading..." : "Send $8.88"}
+                    </button>
+                  ) : (
+                    <button className="glow-btn" onClick={handleConfirmPayment} disabled={paymentLoading}>
+                      {paymentLoading ? "Processing..." : "Confirm $8.88"}
+                    </button>
+                  )}
                 </div>
               )}
               {paymentError && (
@@ -1291,8 +1299,7 @@ Respond ONLY with a JSON object, no markdown, no preamble:
               )}
             </div>
             <p style={{ color: "#6E6E73", fontStyle: "italic", marginBottom: "0.8rem" }}>
-              Your full beginner's guide, and an opportunity to go deeper into your
-              new identity, has been sent to your email.
+              Your full beginner's guide has been sent to your email.
             </p>
             <p style={{ color: "#0D9488", fontWeight: 700 }}>
               One last reminder — save this page's link now, so you can return to
