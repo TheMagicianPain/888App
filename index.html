@@ -4,9 +4,20 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>The Draw — The Magician's Path</title>
+
+<!-- PWA: home screen install -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#0D9488">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="The Draw">
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=EB+Garamond:ital,wght@0,500;0,600;1,400&display=swap" rel="stylesheet">
+<script src="https://js.stripe.com/v3/"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; }
   body { margin: 0; }
@@ -117,6 +128,10 @@ const OATH = `I am ready to ascend. I release my old, lesser identity. I am read
 const CUSTOM_TONE_URL = "https://themagicianpain.github.io/432hz-tone/432%20Hz%20Bring%20Down%20Heart%20Rate.mp3";
 const ZAPIER_WEBHOOK_URL = "https://hooks.zapier.com/hooks/catch/28412006/46h2c0y/";
 const ELEVENLABS_VOICE_ID = "jxJbAWE9XnDZWevjkL10";
+// TODO: replace with your real Stripe publishable key (starts with pk_live_ or pk_test_) — safe to expose client-side.
+const STRIPE_PUBLISHABLE_KEY = "pk_live_51Tz6nSE08geq6NKQmfjrcM4jmNiJdJImPjnBTZ5J8RIvBaoVpGa0DVpqbFIuhAc2MDCVfa0GK8ALtlwvIcWBF4Nr00MwP4csem";
+// Safe to expose client-side. The matching private key must live only in the Worker/backend, never here.
+const VAPID_PUBLIC_KEY = "BN5ctHYADY2nn2EIXOgZvklszZfqivlckYGxvLgJ6RCbkYMPWuSciJqOD30Gz3eSqYSW3RqadQKA060tbsRcL9Q";
 
 function GlitterLayer({ count = 35 }) {
   const [dots] = useState(() =>
@@ -214,11 +229,20 @@ function TarotDraw() {
   const [nameInput, setNameInput] = useState("");
   const [oathChecked, setOathChecked] = useState(false);
   const [savedCode, setSavedCode] = useState(null);
+  const [linkCopied, setLinkCopied] = useState(false);
   const [tonePlaying, setTonePlaying] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [voiceLoading, setVoiceLoading] = useState(false);
   const [voiceError, setVoiceError] = useState(null);
   const [toneVolume, setToneVolume] = useState(0.36); // 40% lower than the original 0.6 default
+  const [showPayment, setShowPayment] = useState(false);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentError, setPaymentError] = useState(null);
+  const [paymentSucceeded, setPaymentSucceeded] = useState(false);
+  const [notifStatus, setNotifStatus] = useState("default"); // 'default' | 'granted' | 'denied' | 'unsupported'
+
+  const stripeRef = useRef(null);
+  const elementsRef = useRef(null);
 
   const audioCtxRef = useRef(null);
   const oscRef = useRef(null);
@@ -276,6 +300,57 @@ function TarotDraw() {
     };
   }, []);
 
+  // Register the service worker (installability + push receiving). Doesn't
+  // prompt anything visible — permission is only asked when the user taps
+  // "Enable Notifications" below.
+  useEffect(() => {
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("./sw.js").catch((e) => {
+        console.error("Service worker registration failed:", e);
+      });
+    }
+    if (!("Notification" in window) || !("PushManager" in window)) {
+      setNotifStatus("unsupported");
+    } else {
+      setNotifStatus(Notification.permission); // 'default' | 'granted' | 'denied'
+    }
+  }, []);
+
+  function urlBase64ToUint8Array(base64String) {
+    const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+    const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+    const rawData = atob(base64);
+    return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
+  }
+
+  async function enableNotifications() {
+    try {
+      const permission = await Notification.requestPermission();
+      setNotifStatus(permission);
+      if (permission !== "granted") return;
+
+      const reg = await navigator.serviceWorker.ready;
+      const subscription = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
+      });
+
+      // Send the subscription to your Worker so it can push to this device later.
+      // (Requires a matching endpoint on the Worker — not built yet.)
+      if (WORKER_URL) {
+        fetch(`${WORKER_URL}/save-push-subscription`, {
+          method: "POST",
+          body: JSON.stringify({ subscription, email: emailInput || null }),
+        }).catch(() => {
+          // don't block the user's experience if this isn't wired up yet
+        });
+      }
+    } catch (e) {
+      console.error("Notification permission/subscription failed:", e);
+      setNotifStatus("denied");
+    }
+  }
+
   function startDraw(finalIdentity) {
     setGoal(finalIdentity);
     const majors = drawFrom(MAJOR, 2);
@@ -288,6 +363,33 @@ function TarotDraw() {
     ];
     setPairs(drawnPairs);
     setStage("reveal");
+  }
+
+  async function copyLink() {
+    const link = window.location.href;
+    try {
+      await navigator.clipboard.writeText(link);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 3000);
+    } catch (e) {
+      // Fallback for in-app browsers (e.g. Instagram's webview) that block
+      // the Clipboard API — select the text so the user can copy manually.
+      try {
+        const temp = document.createElement("textarea");
+        temp.value = link;
+        temp.style.position = "fixed";
+        temp.style.opacity = "0";
+        document.body.appendChild(temp);
+        temp.focus();
+        temp.select();
+        document.execCommand("copy");
+        document.body.removeChild(temp);
+        setLinkCopied(true);
+        setTimeout(() => setLinkCopied(false), 3000);
+      } catch (e2) {
+        setVoiceError("Couldn't copy automatically — please copy the link from your browser's address bar.");
+      }
+    }
   }
 
   async function submitEmailGate() {
@@ -359,6 +461,25 @@ Respond ONLY with a JSON object, no markdown, no preamble:
         url.searchParams.set("d", encoded);
         window.history.replaceState({}, "", url);
         setSavedCode("saved");
+
+        if (ZAPIER_WEBHOOK_URL) {
+          fetch(ZAPIER_WEBHOOK_URL, {
+            method: "POST",
+            body: JSON.stringify({
+              name: nameInput,
+              email: emailInput,
+              identity: goal,
+              source: "tarot-draw-reading-ready",
+              saved_link: url.toString(),
+              archetype: parsed.archetype,
+              blocking: parsed.blocking,
+              pathForward: parsed.pathForward,
+              whoYouBecome: parsed.whoYouBecome,
+            }),
+          }).catch(() => {
+            // don't block the user's experience if this fails silently
+          });
+        }
       } catch (e) {
         console.error("Failed to encode save link:", e);
         setSavedCode(null);
@@ -656,6 +777,52 @@ Respond ONLY with a JSON object, no markdown, no preamble:
     }
   }
 
+  async function handleStartPayment() {
+    setPaymentError(null);
+    setPaymentLoading(true);
+    try {
+      const response = await fetch(`${WORKER_URL}/create-payment-intent`, {
+        method: "POST",
+        body: JSON.stringify({ amount: 888, currency: "usd", description: "Reciprocity gift — The Draw" }),
+      });
+      if (!response.ok) {
+        throw new Error("Could not start payment. Please try again.");
+      }
+      const { clientSecret } = await response.json();
+
+      const stripe = window.Stripe(STRIPE_PUBLISHABLE_KEY);
+      stripeRef.current = stripe;
+      const elements = stripe.elements({ clientSecret });
+      elementsRef.current = elements;
+      const paymentElement = elements.create("payment");
+      paymentElement.mount("#payment-element-mount");
+
+      setShowPayment(true);
+    } catch (e) {
+      setPaymentError(e.message || "Something went wrong starting the payment.");
+    } finally {
+      setPaymentLoading(false);
+    }
+  }
+
+  async function handleConfirmPayment() {
+    if (!stripeRef.current || !elementsRef.current) return;
+    setPaymentLoading(true);
+    setPaymentError(null);
+    const { error } = await stripeRef.current.confirmPayment({
+      elements: elementsRef.current,
+      confirmParams: { return_url: window.location.href },
+      redirect: "if_required",
+    });
+    setPaymentLoading(false);
+    if (error) {
+      setPaymentError(error.message || "Payment failed. Please try again.");
+    } else {
+      setPaymentSucceeded(true);
+      setShowPayment(false);
+    }
+  }
+
   function confirmOathAndSave() {
     setUnlocked(true);
     setStage("meditation");
@@ -748,6 +915,12 @@ Respond ONLY with a JSON object, no markdown, no preamble:
       `}</style>
 
       <div style={{ maxWidth: 560, width: "100%", textAlign: "center", position: "relative", zIndex: 1 }}>
+        <svg width="40" height="40" viewBox="0 0 100 100" style={{ marginBottom: "0.8rem" }}>
+          <polygon
+            points="50.00,16.00 55.36,37.07 74.04,25.96 62.93,44.64 84.00,50.00 62.93,55.36 74.04,74.04 55.36,62.93 50.00,84.00 44.64,62.93 25.96,74.04 37.07,55.36 16.00,50.00 37.07,44.64 25.96,25.96 44.64,37.07"
+            fill="#0D9488"
+          />
+        </svg>
         <div className="cinzel" style={{ fontSize: "0.78rem", letterSpacing: "0.28em", color: "#0D9488", textTransform: "uppercase", marginBottom: "1.2rem" }}>
           The Magician's Path
         </div>
@@ -927,9 +1100,14 @@ Respond ONLY with a JSON object, no markdown, no preamble:
               <>
                 <h2 className="cinzel" style={{ fontSize: "1.4rem", marginBottom: "1.2rem" }}>Your Reading</h2>
                 {savedCode && (
-                  <p style={{ background: "rgba(13,148,136,0.08)", border: "1px solid rgba(13,148,136,0.35)", borderRadius: 10, padding: "0.8rem 1rem", color: "#0D9488", fontWeight: 700, fontSize: "1rem", marginBottom: "1.4rem" }}>
-                    Copy this page's link now — it's already saved, and brings you straight back to this exact reading anytime.
-                  </p>
+                  <div style={{ background: "rgba(13,148,136,0.08)", border: "1px solid rgba(13,148,136,0.35)", borderRadius: 10, padding: "0.8rem 1rem", marginBottom: "1.4rem" }}>
+                    <p style={{ color: "#0D9488", fontWeight: 700, fontSize: "1rem", margin: "0 0 0.7rem" }}>
+                      Save this link now — it brings you straight back to this exact reading anytime.
+                    </p>
+                    <button className="audio-btn" onClick={copyLink} style={{ width: "100%", justifyContent: "center" }}>
+                      {linkCopied ? "✓ Copied!" : "📋 Copy My Link"}
+                    </button>
+                  </div>
                 )}
                 <div style={{ textAlign: "left", marginBottom: "1.6rem" }}>
                   <div className="cinzel" style={{ fontSize: "0.85rem", color: STEPS[0].color, letterSpacing: "0.08em", marginBottom: "0.4rem" }}>{STEPS[0].label}</div>
@@ -981,9 +1159,14 @@ Respond ONLY with a JSON object, no markdown, no preamble:
               you are not operating any machinery.
             </p>
             {savedCode && (
-              <p style={{ background: "rgba(13,148,136,0.08)", border: "1px solid rgba(13,148,136,0.35)", borderRadius: 10, padding: "0.8rem 1rem", color: "#0D9488", fontWeight: 700, fontSize: "1rem", marginBottom: "1.2rem" }}>
-                Copy this page's link now — it's your way back, every day, for the next eight days.
-              </p>
+              <div style={{ background: "rgba(13,148,136,0.08)", border: "1px solid rgba(13,148,136,0.35)", borderRadius: 10, padding: "0.8rem 1rem", marginBottom: "1.2rem" }}>
+                <p style={{ color: "#0D9488", fontWeight: 700, fontSize: "1rem", margin: "0 0 0.7rem" }}>
+                  Save this link now — it's your way back, every day, for the next eight days.
+                </p>
+                <button className="audio-btn" onClick={copyLink} style={{ width: "100%", justifyContent: "center" }}>
+                  {linkCopied ? "✓ Copied!" : "📋 Copy My Link"}
+                </button>
+              </div>
             )}
             {voiceError && (
               <p style={{ color: "#DC2645", fontSize: "0.9rem", marginBottom: "1rem" }}>
@@ -1030,6 +1213,16 @@ Respond ONLY with a JSON object, no markdown, no preamble:
               >
                 <Download size={13} /> Save as Text
               </button>
+              {notifStatus === "default" && (
+                <button className="audio-btn" onClick={enableNotifications}>
+                  🔔 Enable Notifications
+                </button>
+              )}
+              {notifStatus === "granted" && (
+                <span className="audio-btn" style={{ cursor: "default", opacity: 0.7 }}>
+                  🔔 Notifications On
+                </span>
+              )}
             </div>
             {meditationParts ? (
               <div style={{ textAlign: "left", marginBottom: "2rem" }}>
@@ -1079,15 +1272,23 @@ Respond ONLY with a JSON object, no markdown, no preamble:
                 your desires, and the number 888 carries a resonance that summons your
                 higher self.
               </p>
-              <a
-                href="https://buy.stripe.com/bJeaEX1eO8BactZ8tidAk02"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="glow-btn"
-                style={{ textDecoration: "none", display: "inline-block" }}
-              >
-                Send $8.88
-              </a>
+              {paymentSucceeded ? (
+                <p style={{ color: "#0D9488", fontWeight: 700 }}>Thank you 🙏 — received.</p>
+              ) : !showPayment ? (
+                <button className="glow-btn" onClick={handleStartPayment} disabled={paymentLoading}>
+                  {paymentLoading ? "Loading..." : "Send $8.88"}
+                </button>
+              ) : (
+                <div style={{ textAlign: "left" }}>
+                  <div id="payment-element-mount" style={{ marginBottom: "1rem" }}></div>
+                  <button className="glow-btn" onClick={handleConfirmPayment} disabled={paymentLoading}>
+                    {paymentLoading ? "Processing..." : "Confirm $8.88"}
+                  </button>
+                </div>
+              )}
+              {paymentError && (
+                <p style={{ color: "#DC2645", fontSize: "0.9rem", marginTop: "0.8rem" }}>{paymentError}</p>
+              )}
             </div>
             <p style={{ color: "#6E6E73", fontStyle: "italic", marginBottom: "0.8rem" }}>
               Your full beginner's guide, and an opportunity to go deeper into your
