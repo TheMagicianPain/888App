@@ -17,7 +17,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=EB+Garamond:ital,wght@0,500;0,600;1,400&display=swap" rel="stylesheet">
-<script src="https://js.stripe.com/v3/"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; }
   body { margin: 0; }
@@ -128,8 +127,6 @@ const OATH = `I am ready to ascend. I release my old, lesser identity. I am read
 const CUSTOM_TONE_URL = "https://themagicianpain.github.io/432hz-tone/432%20Hz%20Bring%20Down%20Heart%20Rate.mp3";
 const ZAPIER_WEBHOOK_URL = "https://hooks.zapier.com/hooks/catch/28412006/46h2c0y/";
 const ELEVENLABS_VOICE_ID = "jxJbAWE9XnDZWevjkL10";
-// TODO: replace with your real Stripe publishable key (starts with pk_live_ or pk_test_) — safe to expose client-side.
-const STRIPE_PUBLISHABLE_KEY = "pk_live_51Tz6nSE08geq6NKQmfjrcM4jmNiJdJImPjnBTZ5J8RIvBaoVpGa0DVpqbFIuhAc2MDCVfa0GK8ALtlwvIcWBF4Nr00MwP4csem";
 // Safe to expose client-side. The matching private key must live only in the Worker/backend, never here.
 const VAPID_PUBLIC_KEY = "BN5ctHYADY2nn2EIXOgZvklszZfqivlckYGxvLgJ6RCbkYMPWuSciJqOD30Gz3eSqYSW3RqadQKA060tbsRcL9Q";
 
@@ -235,14 +232,7 @@ function TarotDraw() {
   const [voiceLoading, setVoiceLoading] = useState(false);
   const [voiceError, setVoiceError] = useState(null);
   const [toneVolume, setToneVolume] = useState(0.36); // 40% lower than the original 0.6 default
-  const [showPayment, setShowPayment] = useState(false);
-  const [paymentLoading, setPaymentLoading] = useState(false);
-  const [paymentError, setPaymentError] = useState(null);
-  const [paymentSucceeded, setPaymentSucceeded] = useState(false);
   const [notifStatus, setNotifStatus] = useState("default"); // 'default' | 'granted' | 'denied' | 'unsupported'
-
-  const stripeRef = useRef(null);
-  const elementsRef = useRef(null);
 
   const audioCtxRef = useRef(null);
   const oscRef = useRef(null);
@@ -274,7 +264,20 @@ function TarotDraw() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    const d = params.get("d");
+    let d = params.get("d");
+
+    // No 'd' in the URL — most likely because we just returned from a
+    // redirect-based payment method (Amazon Pay / Klarna / Cash App Pay),
+    // whose return_url intentionally omits it to stay under Stripe's URL
+    // length limit. Fall back to the copy saved in localStorage.
+    if (!d) {
+      try {
+        d = localStorage.getItem("magi_saved_reading");
+      } catch (e) {
+        d = null;
+      }
+    }
+
     if (d) {
       try {
         const saved = decodeFromParam(d);
@@ -461,6 +464,11 @@ Respond ONLY with a JSON object, no markdown, no preamble:
         url.searchParams.set("d", encoded);
         window.history.replaceState({}, "", url);
         setSavedCode("saved");
+        try {
+          localStorage.setItem("magi_saved_reading", encoded);
+        } catch (e) {
+          // localStorage can fail in some private-browsing contexts — not critical, URL param still works
+        }
 
         if (ZAPIER_WEBHOOK_URL) {
           fetch(ZAPIER_WEBHOOK_URL, {
@@ -774,52 +782,6 @@ Respond ONLY with a JSON object, no markdown, no preamble:
     setVoiceLoading(false);
     if (donationRef.current) {
       donationRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-  }
-
-  async function handleStartPayment() {
-    setPaymentError(null);
-    setPaymentLoading(true);
-    try {
-      const response = await fetch(`${WORKER_URL}/create-payment-intent`, {
-        method: "POST",
-        body: JSON.stringify({ amount: 888, currency: "usd", description: "Reciprocity gift — The Draw" }),
-      });
-      if (!response.ok) {
-        throw new Error("Could not start payment. Please try again.");
-      }
-      const { clientSecret } = await response.json();
-
-      const stripe = window.Stripe(STRIPE_PUBLISHABLE_KEY);
-      stripeRef.current = stripe;
-      const elements = stripe.elements({ clientSecret });
-      elementsRef.current = elements;
-      const paymentElement = elements.create("payment");
-      paymentElement.mount("#payment-element-mount");
-
-      setShowPayment(true);
-    } catch (e) {
-      setPaymentError(e.message || "Something went wrong starting the payment.");
-    } finally {
-      setPaymentLoading(false);
-    }
-  }
-
-  async function handleConfirmPayment() {
-    if (!stripeRef.current || !elementsRef.current) return;
-    setPaymentLoading(true);
-    setPaymentError(null);
-    const { error } = await stripeRef.current.confirmPayment({
-      elements: elementsRef.current,
-      confirmParams: { return_url: window.location.href },
-      redirect: "if_required",
-    });
-    setPaymentLoading(false);
-    if (error) {
-      setPaymentError(error.message || "Payment failed. Please try again.");
-    } else {
-      setPaymentSucceeded(true);
-      setShowPayment(false);
     }
   }
 
@@ -1270,33 +1232,15 @@ Respond ONLY with a JSON object, no markdown, no preamble:
                 Optional — amplify your intention by reciprocating energy.
                 The number 888 also resonates with abundance and the higher self.
               </p>
-              {paymentSucceeded ? (
-                <p style={{ color: "#0D9488", fontWeight: 700 }}>Thank you 🙏 — received.</p>
-              ) : (
-                <div style={{ textAlign: "left" }}>
-                  <div
-                    id="payment-element-mount"
-                    style={{ marginBottom: showPayment ? "1rem" : 0, display: showPayment ? "block" : "none" }}
-                  ></div>
-                  {!showPayment ? (
-                    <button
-                      className="glow-btn"
-                      onClick={handleStartPayment}
-                      disabled={paymentLoading}
-                      style={{ display: "block", margin: "0 auto" }}
-                    >
-                      {paymentLoading ? "Loading..." : "Send $8.88"}
-                    </button>
-                  ) : (
-                    <button className="glow-btn" onClick={handleConfirmPayment} disabled={paymentLoading}>
-                      {paymentLoading ? "Processing..." : "Confirm $8.88"}
-                    </button>
-                  )}
-                </div>
-              )}
-              {paymentError && (
-                <p style={{ color: "#DC2645", fontSize: "0.9rem", marginTop: "0.8rem" }}>{paymentError}</p>
-              )}
+              <a
+                href="https://buy.stripe.com/bJeaEX1eO8BactZ8tidAk02"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="glow-btn"
+                style={{ textDecoration: "none", display: "inline-block" }}
+              >
+                Send $8.88
+              </a>
             </div>
             <p style={{ color: "#6E6E73", fontStyle: "italic", marginBottom: "0.8rem" }}>
               Your full beginner's guide has been sent to your email.
