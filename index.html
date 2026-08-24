@@ -233,6 +233,12 @@ function TarotDraw() {
   const [voiceError, setVoiceError] = useState(null);
   const [toneVolume, setToneVolume] = useState(0.36); // 40% lower than the original 0.6 default
   const [notifStatus, setNotifStatus] = useState("default"); // 'default' | 'granted' | 'denied' | 'unsupported'
+  const [instantReadQuestion, setInstantReadQuestion] = useState("");
+  const [instantReadResponse, setInstantReadResponse] = useState(null);
+  const [instantReadLoading, setInstantReadLoading] = useState(false);
+  const [instantReadError, setInstantReadError] = useState(null);
+  const [freeReadsRemaining, setFreeReadsRemaining] = useState(3);
+  const [readCredits, setReadCredits] = useState(0);
 
   const audioCtxRef = useRef(null);
   const oscRef = useRef(null);
@@ -488,6 +494,19 @@ Respond ONLY with a JSON object, no markdown, no preamble:
             // don't block the user's experience if this fails silently
           });
         }
+
+        fetch(`${WORKER_URL}/save-reading`, {
+          method: "POST",
+          body: JSON.stringify({
+            email: emailInput,
+            name: nameInput,
+            goal,
+            reading: parsed,
+            visualization: parsed.visualization,
+          }),
+        }).catch(() => {
+          // don't block the user's experience if this fails silently
+        });
       } catch (e) {
         console.error("Failed to encode save link:", e);
         setSavedCode(null);
@@ -782,6 +801,37 @@ Respond ONLY with a JSON object, no markdown, no preamble:
     setVoiceLoading(false);
     if (donationRef.current) {
       donationRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }
+
+  async function requestInstantRead() {
+    if (!instantReadQuestion.trim()) return;
+    setInstantReadLoading(true);
+    setInstantReadError(null);
+    setInstantReadResponse(null);
+    try {
+      const response = await fetch(`${WORKER_URL}/instant-read`, {
+        method: "POST",
+        body: JSON.stringify({ email: emailInput, question: instantReadQuestion }),
+      });
+      const data = await response.json();
+      if (response.status === 402) {
+        setInstantReadError("out_of_reads");
+        setFreeReadsRemaining(0);
+        setReadCredits(data.credits || 0);
+        return;
+      }
+      if (!response.ok) {
+        throw new Error(data.error || "Something went wrong. Try again.");
+      }
+      setInstantReadResponse(data.response);
+      setFreeReadsRemaining(data.freeRemaining);
+      setReadCredits(data.credits);
+      setInstantReadQuestion("");
+    } catch (e) {
+      setInstantReadError(e.message || "Something went wrong. Try again.");
+    } finally {
+      setInstantReadLoading(false);
     }
   }
 
@@ -1245,6 +1295,63 @@ Respond ONLY with a JSON object, no markdown, no preamble:
             <p style={{ color: "#6E6E73", fontStyle: "italic", marginBottom: "0.8rem" }}>
               Your full beginner's guide has been sent to your email.
             </p>
+
+            <div style={{ background: "#FFFFFF", border: "1px solid rgba(13,148,136,0.25)", borderRadius: 14, padding: "1.4rem 1.5rem", marginTop: "1.8rem", marginBottom: "1.8rem", textAlign: "left" }}>
+              <h3 className="cinzel" style={{ fontSize: "1.15rem", marginBottom: "0.5rem" }}>✨ Instant Reads</h3>
+              <p style={{ color: "#6E6E73", fontSize: "0.95rem", marginBottom: "1rem" }}>
+                Got a specific situation on your mind? Ask, and get a reading tied directly to your identity above.
+              </p>
+              <p style={{ color: "#0D9488", fontWeight: 700, fontSize: "0.85rem", marginBottom: "1rem" }}>
+                {readCredits > 0
+                  ? `${readCredits} read${readCredits === 1 ? "" : "s"} remaining`
+                  : `${freeReadsRemaining} free read${freeReadsRemaining === 1 ? "" : "s"} remaining`}
+              </p>
+
+              {instantReadResponse && (
+                <div style={{ background: "#F2F2F7", borderRadius: 10, padding: "1rem", marginBottom: "1rem" }}>
+                  <p style={{ color: "#1C1C1E", lineHeight: 1.7, margin: 0 }}>{instantReadResponse}</p>
+                </div>
+              )}
+
+              {instantReadError === "out_of_reads" ? (
+                <div style={{ textAlign: "center" }}>
+                  <p style={{ color: "#6E6E73", marginBottom: "1rem" }}>
+                    You're out of free reads. Get 12 more for $8.88.
+                  </p>
+                  <a
+                    href="#"
+                    className="glow-btn"
+                    style={{ textDecoration: "none", display: "inline-block", opacity: 0.6, cursor: "not-allowed" }}
+                    onClick={(e) => e.preventDefault()}
+                  >
+                    Get 12 Reads — $8.88 (coming soon)
+                  </a>
+                </div>
+              ) : (
+                <>
+                  <textarea
+                    className="field"
+                    rows={3}
+                    placeholder="What's on your mind? Be as specific as you'd like..."
+                    value={instantReadQuestion}
+                    onChange={(e) => setInstantReadQuestion(e.target.value)}
+                    style={{ marginBottom: "1rem" }}
+                  />
+                  <button
+                    className="glow-btn"
+                    onClick={requestInstantRead}
+                    disabled={instantReadLoading || !instantReadQuestion.trim()}
+                    style={{ width: "100%" }}
+                  >
+                    {instantReadLoading ? "Reading..." : "Get My Instant Read"}
+                  </button>
+                  {instantReadError && instantReadError !== "out_of_reads" && (
+                    <p style={{ color: "#DC2645", fontSize: "0.9rem", marginTop: "0.8rem" }}>{instantReadError}</p>
+                  )}
+                </>
+              )}
+            </div>
+
             <p style={{ color: "#0D9488", fontWeight: 700 }}>
               One last reminder — save this page's link now, so you can return to
               your meditation every day, for the next eight days.
