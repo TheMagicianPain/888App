@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>888 — The Magician's Path</title>
+<title>The Draw — The Magician's Path</title>
 
 <!-- PWA: home screen install -->
 <link rel="manifest" href="manifest.json">
@@ -790,9 +790,12 @@ Respond ONLY with a JSON object, no markdown, no preamble:
     const audio = new Audio(url);
     speechAudioRef.current = audio;
     setVoiceLoading(false);
-    await new Promise((resolve) => {
+    await new Promise((resolve, reject) => {
       audio.onended = resolve;
-      audio.play();
+      audio.onerror = () => reject(new Error("Audio playback failed partway through."));
+      audio.play().catch((err) => {
+        reject(new Error("Playback was blocked by the browser. Tap the button again to continue."));
+      });
     });
     return Date.now() - startedAt;
   }
