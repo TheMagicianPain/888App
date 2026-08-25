@@ -275,7 +275,7 @@ function TarotDraw() {
   const toneStopTimeoutRef = useRef(null);
   const audioElRef = useRef(null);
   const speechAudioRef = useRef(null);
-  const speechUrlRef = useRef(null);
+  const voiceGainRef = useRef(null);
   const speechTimeoutRef = useRef(null);
   const stopFlagRef = useRef(false);
   const firstClipPrefetchRef = useRef(null);
@@ -767,7 +767,7 @@ Respond ONLY with a JSON object, no markdown, no preamble:
     const cached = await getCachedClip(cacheKey);
     if (cached) {
       console.log(`%c[cache HIT]%c no ElevenLabs call — served from IndexedDB (key ${cacheKey.slice(0, 8)}…)`, "color:#0D9488;font-weight:bold", "color:inherit");
-      return URL.createObjectURL(cached);
+      return cached;
     }
 
     console.log(`%c[cache MISS]%c calling ElevenLabs now (key ${cacheKey.slice(0, 8)}…) — will be cached for next time`, "color:#DC2645;font-weight:bold", "color:inherit");
@@ -782,20 +782,52 @@ Respond ONLY with a JSON object, no markdown, no preamble:
     }
     const blob = await response.blob();
     setCachedClip(cacheKey, blob); // fire-and-forget, don't block playback on the write
-    return URL.createObjectURL(blob);
+    return blob;
   }
 
-  async function playClipUrl(url) {
+  // Plays a fetched voice clip through the SAME AudioContext already used
+  // for the healing tone. This is the actual fix for iOS blocking playback
+  // partway through a meditation: a plain <audio> element re-checks the
+  // autoplay policy on every single .play() call, and iOS Safari — especially
+  // in installed/standalone mode — blocks any of those calls that aren't
+  // directly inside a fresh tap. An AudioContext only needs to be unlocked
+  // ONCE by a real gesture; every subsequent buffer played through it,
+  // however later triggered, keeps working — exactly like the tone already does.
+  async function playClipUrl(blob) {
     const startedAt = Date.now();
-    const audio = new Audio(url);
-    speechAudioRef.current = audio;
+    if (!audioCtxRef.current) {
+      audioCtxRef.current = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    const ctx = audioCtxRef.current;
+    if (ctx.state === "suspended") {
+      try {
+        await ctx.resume();
+      } catch (e) {
+        // Still locked — same fallback as the tone: caller can retry after a real tap.
+      }
+    }
+
+    if (!voiceGainRef.current) {
+      voiceGainRef.current = ctx.createGain();
+      voiceGainRef.current.gain.value = 1;
+      voiceGainRef.current.connect(ctx.destination);
+    }
+
+    const arrayBuffer = await blob.arrayBuffer();
+    const audioBuffer = await ctx.decodeAudioData(arrayBuffer);
+    const source = ctx.createBufferSource();
+    source.buffer = audioBuffer;
+    source.connect(voiceGainRef.current);
+    speechAudioRef.current = source;
+
     setVoiceLoading(false);
     await new Promise((resolve, reject) => {
-      audio.onended = resolve;
-      audio.onerror = () => reject(new Error("Audio playback failed partway through."));
-      audio.play().catch((err) => {
+      source.onended = resolve;
+      try {
+        source.start();
+      } catch (err) {
         reject(new Error("Playback was blocked by the browser. Tap the button again to continue."));
-      });
+      }
     });
     return Date.now() - startedAt;
   }
@@ -874,7 +906,6 @@ Respond ONLY with a JSON object, no markdown, no preamble:
         ensureFetching(nextSpeakIndex(idx + 1));
 
         await playClipUrl(url);
-        URL.revokeObjectURL(url);
       }
       setStage("instant-reads");
     } catch (e) {
@@ -892,12 +923,12 @@ Respond ONLY with a JSON object, no markdown, no preamble:
       speechTimeoutRef.current = null;
     }
     if (speechAudioRef.current) {
-      speechAudioRef.current.pause();
+      try {
+        speechAudioRef.current.stop();
+      } catch (e) {
+        // Already ended or never started — nothing left to stop.
+      }
       speechAudioRef.current = null;
-    }
-    if (speechUrlRef.current) {
-      URL.revokeObjectURL(speechUrlRef.current);
-      speechUrlRef.current = null;
     }
     setSpeaking(false);
     setVoiceLoading(false);
