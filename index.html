@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>The Draw — The Magician's Path</title>
+<title>888 — The Magician's Path</title>
 
 <!-- PWA: home screen install -->
 <link rel="manifest" href="manifest.json">
@@ -48,6 +48,7 @@ const Play = (props) => <Icon {...props}><polygon points="5 3 19 12 5 21 5 3"/><
 const Square = (props) => <Icon {...props}><rect x="4" y="4" width="16" height="16" rx="2"/></Icon>;
 const Volume2 = (props) => <Icon {...props}><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></Icon>;
 const Download = (props) => <Icon {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></Icon>;
+const Home = (props) => <Icon {...props}><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></Icon>;
 
 
 const MAJOR = [
@@ -164,6 +165,18 @@ function GlitterLayer({ count = 35 }) {
   );
 }
 
+function isInstagramBrowser() {
+  return /Instagram/i.test(navigator.userAgent);
+}
+
+function isIOS() {
+  return /iPhone|iPad|iPod/i.test(navigator.userAgent);
+}
+
+function isAndroid() {
+  return /Android/i.test(navigator.userAgent);
+}
+
 function buildMeditation(visualization) {
   const inductionPre = `Before we begin — make sure you are not operating any machinery, and that you are seated safely in a quiet space.
 
@@ -198,15 +211,16 @@ Feel its warmth now — not just on your skin, but inside you. Inside every cell
 
   const closingPost = `Open your eyes. Take a deep breath.`;
 
-  const reminder = `Repeat this practice daily, for the next eight days. Make sure to save this page's link, so you can return to it — and to this exact meditation — every day.`;
-
-  const reciprocity = `This was given to you freely. If it moved something in you, consider offering eight dollars and eighty-eight cents back into the exchange. The law of reciprocity helps the universe respond to your own desires, and the number eight, eight, eight carries a resonance that summons your higher self.`;
+  const isStandaloneForReminder = window.matchMedia("(display-mode: standalone)").matches;
+  const reminder = isStandaloneForReminder
+    ? `Repeat this practice daily, for the next eight days. Return to this exact meditation, every day.`
+    : `Repeat this practice daily, for the next eight days. Add this to your home screen now, so you can return to it — and to this exact meditation — every day.`;
 
   const induction = `${inductionPre}\n\n${breathCycle}\n\n${inductionCountSetup}\n\n${inductionCount}\n\n${inductionPost}`;
   const closing = `${closingPre}\n\n${closingCount}\n\n${closingPost}`;
 
-  const fullMeditation = [induction, voidLight, visualization, anchor, closing, reminder, reciprocity].join("\n\n");
-  const parts = { inductionPre, breathCycle, breathCycleSSML, inductionCountSetup, inductionCount, countSSML, inductionPost, voidLight, visualization, anchor, closingPre, closingCount, closingCountSSML, closingPost, reminder, reciprocity };
+  const fullMeditation = [induction, voidLight, visualization, anchor, closing, reminder].join("\n\n");
+  const parts = { inductionPre, breathCycle, breathCycleSSML, inductionCountSetup, inductionCount, countSSML, inductionPost, voidLight, visualization, anchor, closingPre, closingCount, closingCountSSML, closingPost, reminder };
 
   return { fullMeditation, parts };
 }
@@ -226,30 +240,45 @@ function TarotDraw() {
   const [nameInput, setNameInput] = useState("");
   const [oathChecked, setOathChecked] = useState(false);
   const [savedCode, setSavedCode] = useState(null);
-  const [linkCopied, setLinkCopied] = useState(false);
   const [tonePlaying, setTonePlaying] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [voiceLoading, setVoiceLoading] = useState(false);
   const [voiceError, setVoiceError] = useState(null);
-  const [toneVolume, setToneVolume] = useState(0.36); // 40% lower than the original 0.6 default
+  const [toneVolume, setToneVolume] = useState(0.252); // 40% lower than original, then another 30% quieter on top of that
   const [notifStatus, setNotifStatus] = useState("default"); // 'default' | 'granted' | 'denied' | 'unsupported'
   const [instantReadQuestion, setInstantReadQuestion] = useState("");
   const [instantReadResponse, setInstantReadResponse] = useState(null);
+  const [instantReadCards, setInstantReadCards] = useState(null);
+  const [instantReadSuggestedFollowUp, setInstantReadSuggestedFollowUp] = useState(null);
+  const [instantReadIsCrisis, setInstantReadIsCrisis] = useState(false);
+  const [instantReadPrayerOffer, setInstantReadPrayerOffer] = useState(null);
+  const [prayerCast, setPrayerCast] = useState(null);
+  const [prayerLoading, setPrayerLoading] = useState(false);
   const [instantReadLoading, setInstantReadLoading] = useState(false);
   const [instantReadError, setInstantReadError] = useState(null);
-  const [freeReadsRemaining, setFreeReadsRemaining] = useState(3);
-  const [readCredits, setReadCredits] = useState(0);
+  const [credits, setCredits] = useState(3);
+  const [consumingNewMeditationCredit, setConsumingNewMeditationCredit] = useState(false);
+  const NEW_MEDITATION_COST = 12; // same 12-credit price as a reads pack, spent from the same pool
+  const [showProfileRecovery, setShowProfileRecovery] = useState(false);
+  const [recoveryEmailInput, setRecoveryEmailInput] = useState("");
+  const [recoveryEmailError, setRecoveryEmailError] = useState(null);
+  const [recoveryEmailLoading, setRecoveryEmailLoading] = useState(false);
+  const [showTonePopup, setShowTonePopup] = useState(false);
+  const [showHomeScreenPopup, setShowHomeScreenPopup] = useState(false);
+  const [hasAutoShownHomeScreenPopup, setHasAutoShownHomeScreenPopup] = useState(false);
+  const [showReminderTimePopup, setShowReminderTimePopup] = useState(false);
+  const [reminderHourLocal, setReminderHourLocal] = useState(9);
 
   const audioCtxRef = useRef(null);
   const oscRef = useRef(null);
   const gainRef = useRef(null);
+  const toneStopTimeoutRef = useRef(null);
   const audioElRef = useRef(null);
   const speechAudioRef = useRef(null);
   const speechUrlRef = useRef(null);
   const speechTimeoutRef = useRef(null);
   const stopFlagRef = useRef(false);
   const firstClipPrefetchRef = useRef(null);
-  const donationRef = useRef(null);
 
   function encodeToParam(obj) {
     const json = JSON.stringify(obj);
@@ -270,6 +299,28 @@ function TarotDraw() {
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+
+    // Opened from the installed home-screen icon (manifest's start_url
+    // carries this marker) — show the hub, don't auto-jump into meditation
+    // even if there's a saved reading sitting in localStorage.
+    if (params.get("home") === "true") {
+      setStage("hub");
+      try {
+        const d = localStorage.getItem("magi_saved_reading");
+        if (d) {
+          const saved = decodeFromParam(d);
+          setEmailInput(saved.email || "");
+          setNameInput(saved.name || "");
+          refreshReadStatus(saved.email);
+        } else {
+          setShowProfileRecovery(true);
+        }
+      } catch (e) {
+        setShowProfileRecovery(true);
+      }
+      return;
+    }
+
     let d = params.get("d");
 
     // No 'd' in the URL — most likely because we just returned from a
@@ -292,13 +343,22 @@ function TarotDraw() {
         setReading(saved.reading);
         setMeditation(built.fullMeditation);
         setMeditationParts(built.parts);
+        setEmailInput(saved.email || "");
+        setNameInput(saved.name || "");
+        setSavedCode("saved");
         setUnlocked(true);
         setStage("meditation");
         startTone();
+        refreshReadStatus(saved.email);
       } catch (e) {
         console.error("Failed to restore saved meditation:", e);
         setVoiceError("This saved link couldn't be loaded. It may be corrupted or incomplete.");
       }
+    } else {
+      // No URL data, nothing in local storage — we genuinely don't know
+      // who this is. Offer a fast way to reconnect instead of silently
+      // dropping them into the fresh-draw flow.
+      setShowProfileRecovery(true);
     }
   }, []);
 
@@ -308,6 +368,26 @@ function TarotDraw() {
       if (window.speechSynthesis) window.speechSynthesis.cancel();
     };
   }, []);
+
+  // Auto-show the home screen instructions once someone scrolls to the
+  // bottom of their meditation — but only in a regular browser tab. Someone
+  // already using the installed standalone version doesn't need this at all.
+  useEffect(() => {
+    if (stage !== "meditation" || !savedCode || hasAutoShownHomeScreenPopup) return;
+    const isStandalone = window.matchMedia("(display-mode: standalone)").matches;
+    if (isStandalone) return;
+
+    function handleScroll() {
+      const scrolledToBottom = window.innerHeight + window.scrollY >= document.body.offsetHeight - 100;
+      if (scrolledToBottom) {
+        setShowHomeScreenPopup(true);
+        setHasAutoShownHomeScreenPopup(true);
+      }
+    }
+
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, [stage, savedCode, hasAutoShownHomeScreenPopup]);
 
   // Register the service worker (installability + push receiving). Doesn't
   // prompt anything visible — permission is only asked when the user taps
@@ -332,6 +412,10 @@ function TarotDraw() {
     return Uint8Array.from([...rawData].map((c) => c.charCodeAt(0)));
   }
 
+  function handleEnableNotificationsClick() {
+    setShowReminderTimePopup(true);
+  }
+
   async function enableNotifications() {
     try {
       const permission = await Notification.requestPermission();
@@ -344,14 +428,23 @@ function TarotDraw() {
         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
       });
 
-      // Send the subscription to your Worker so it can push to this device later.
-      // (Requires a matching endpoint on the Worker — not built yet.)
+      // Send the subscription + their reading to the Worker — this is what
+      // lets it generate their 8 personalized reminder messages, once, right now.
       if (WORKER_URL) {
+        const reminderHourUTC = Math.round((reminderHourLocal + new Date().getTimezoneOffset() / 60 + 24) % 24);
         fetch(`${WORKER_URL}/save-push-subscription`, {
           method: "POST",
-          body: JSON.stringify({ subscription, email: emailInput || null }),
+          body: JSON.stringify({
+            subscription,
+            email: emailInput || null,
+            name: nameInput || null,
+            goal,
+            reading,
+            visualization: meditationParts ? meditationParts.visualization : null,
+            reminderHourUTC,
+          }),
         }).catch(() => {
-          // don't block the user's experience if this isn't wired up yet
+          // don't block the user's experience if this fails silently
         });
       }
     } catch (e) {
@@ -372,33 +465,6 @@ function TarotDraw() {
     ];
     setPairs(drawnPairs);
     setStage("reveal");
-  }
-
-  async function copyLink() {
-    const link = window.location.href;
-    try {
-      await navigator.clipboard.writeText(link);
-      setLinkCopied(true);
-      setTimeout(() => setLinkCopied(false), 3000);
-    } catch (e) {
-      // Fallback for in-app browsers (e.g. Instagram's webview) that block
-      // the Clipboard API — select the text so the user can copy manually.
-      try {
-        const temp = document.createElement("textarea");
-        temp.value = link;
-        temp.style.position = "fixed";
-        temp.style.opacity = "0";
-        document.body.appendChild(temp);
-        temp.focus();
-        temp.select();
-        document.execCommand("copy");
-        document.body.removeChild(temp);
-        setLinkCopied(true);
-        setTimeout(() => setLinkCopied(false), 3000);
-      } catch (e2) {
-        setVoiceError("Couldn't copy automatically — please copy the link from your browser's address bar.");
-      }
-    }
   }
 
   async function submitEmailGate() {
@@ -424,6 +490,16 @@ function TarotDraw() {
       .join("\n");
 
     const prompt = `You are writing in the voice of "The Magician's Path" — an esoteric identity-transformation brand built on tarot archetypes, chakra ascension through alchemy, and a framework of "Curses" (specific blocks like Identity Vacuum, Soul Bind, False Beliefs, Energy Leakage) that keep someone from full expression. Voice: direct, warm, confident, spiritually serious but not stiff.
+
+Write like an actual person talking, not like AI-generated content:
+- Vary sentence length hard. Some sentences should be short. Blunt, even. Not everything builds to a poetic crescendo.
+- Never use "not just X, it's Y" or "isn't about X, it's about Y" — banned constructions, both of them.
+- Don't force things into neat sets of three.
+- Cut generic profound-sounding words on sight: journey, unlock, unleash, embrace, navigate, tapestry, resonate, profound, transform, align, elevate.
+- Be specific and a little concrete/odd rather than vague and universal. A real detail beats a beautiful generality every time.
+- Don't resolve every thought into a tidy, balanced conclusion. Real people trail off, get blunt, contradict themselves slightly.
+- Use contractions always — you're, it's, don't. Never write in a stiff, grammatically "complete" way nobody actually talks in.
+- If a line could appear in a hundred different generic horoscopes, cut it and say the actual specific thing instead.
 
 The identity the person wants to become: "${identity}"
 
@@ -465,7 +541,7 @@ Respond ONLY with a JSON object, no markdown, no preamble:
       setMeditationParts(built.parts);
 
       try {
-        const encoded = encodeToParam({ goal, reading: parsed, visualization: parsed.visualization });
+        const encoded = encodeToParam({ goal, reading: parsed, visualization: parsed.visualization, email: emailInput, name: nameInput });
         const url = new URL(window.location.href);
         url.searchParams.set("d", encoded);
         window.history.replaceState({}, "", url);
@@ -503,10 +579,12 @@ Respond ONLY with a JSON object, no markdown, no preamble:
             goal,
             reading: parsed,
             visualization: parsed.visualization,
+            consumeNewMeditationCredit: consumingNewMeditationCredit,
           }),
         }).catch(() => {
           // don't block the user's experience if this fails silently
         });
+        setConsumingNewMeditationCredit(false);
       } catch (e) {
         console.error("Failed to encode save link:", e);
         setSavedCode(null);
@@ -532,10 +610,23 @@ Respond ONLY with a JSON object, no markdown, no preamble:
       }
     }
 
-    // A tone graph may already exist from an earlier blocked attempt (e.g. the
-    // automatic call on page load). Don't create a second one — just reflect
-    // whether it's actually audible now that a real user gesture may have unlocked it.
+    // If Play is tapped again before a pending stop actually finished (within
+    // the 650ms fade-out window), cancel that stop and ramp back up in place
+    // instead of leaving the old node orphaned and creating a second one.
+    if (toneStopTimeoutRef.current) {
+      clearTimeout(toneStopTimeoutRef.current);
+      toneStopTimeoutRef.current = null;
+    }
+
+    // A tone graph may already exist — either from an earlier blocked
+    // autoplay attempt, or because we just cancelled a pending stop above.
+    // Don't create a second one — just make sure it's actually audible.
     if (oscRef.current) {
+      const gain = gainRef.current;
+      const targetVal = CUSTOM_TONE_URL ? toneVolume : toneVolume * 0.06;
+      gain.gain.cancelScheduledValues(ctx.currentTime);
+      gain.gain.setValueAtTime(gain.gain.value, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(targetVal, ctx.currentTime + 0.3);
       setTonePlaying(ctx.state === "running");
       return;
     }
@@ -589,13 +680,25 @@ Respond ONLY with a JSON object, no markdown, no preamble:
     if (oscRef.current) {
       const ctx = audioCtxRef.current;
       const gain = gainRef.current;
-      gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.6);
       const src = oscRef.current;
-      setTimeout(() => {
-        src.stop();
-        src.disconnect();
+      gain.gain.cancelScheduledValues(ctx.currentTime);
+      gain.gain.setValueAtTime(gain.gain.value, ctx.currentTime);
+      gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.6);
+      toneStopTimeoutRef.current = setTimeout(() => {
+        try {
+          src.stop();
+          src.disconnect();
+        } catch (e) {
+          // Already stopped/disconnected — fine, nothing left to clean up.
+        }
+        // Only clear the ref if it's still pointing at THIS source — if
+        // Play was tapped again in the meantime, startTone() already
+        // reused it and we shouldn't null out a currently-active node.
+        if (oscRef.current === src) {
+          oscRef.current = null;
+        }
+        toneStopTimeoutRef.current = null;
       }, 650);
-      oscRef.current = null;
     }
     setTonePlaying(false);
   }
@@ -726,8 +829,6 @@ Respond ONLY with a JSON object, no markdown, no preamble:
           { type: "speak", text: parts.closingPost },
           { type: "pause", ms: 2000 },
           { type: "speak", text: parts.reminder },
-          { type: "pause", ms: 1800 },
-          { type: "speak", text: parts.reciprocity },
         ]
       : meditation.split(/\n\n+/).filter((s) => s.trim()).map((text) => ({ type: "speak", text }));
 
@@ -772,14 +873,12 @@ Respond ONLY with a JSON object, no markdown, no preamble:
         await playClipUrl(url);
         URL.revokeObjectURL(url);
       }
+      setStage("instant-reads");
     } catch (e) {
       setVoiceError(e.message || "Voice failed to play. Check your connection and try again.");
     } finally {
       setSpeaking(false);
       setVoiceLoading(false);
-      if (donationRef.current) {
-        donationRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
-      }
     }
   }
 
@@ -799,39 +898,215 @@ Respond ONLY with a JSON object, no markdown, no preamble:
     }
     setSpeaking(false);
     setVoiceLoading(false);
-    if (donationRef.current) {
-      donationRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  async function loadProfileByEmail(email) {
+    if (!email || !email.includes("@")) {
+      setRecoveryEmailError("Enter a valid email.");
+      return;
+    }
+    setRecoveryEmailLoading(true);
+    setRecoveryEmailError(null);
+    try {
+      const response = await fetch(`${WORKER_URL}/get-profile`, {
+        method: "POST",
+        body: JSON.stringify({ email }),
+      });
+      if (response.status === 404) {
+        setRecoveryEmailError("No reading found for that email yet — try the link from your original email, or start fresh below.");
+        return;
+      }
+      if (!response.ok) {
+        setRecoveryEmailError("Something went wrong. Try again.");
+        return;
+      }
+      const data = await response.json();
+      setEmailInput(data.email || email);
+      setNameInput(data.name || "");
+      setGoal(data.goal || "");
+      setReading(data.reading || null);
+      setCredits(data.credits || 0);
+      if (data.reading) {
+        setSavedCode("saved");
+      }
+
+      if (data.visualization) {
+        const built = buildMeditation(data.visualization);
+        setMeditation(built.fullMeditation);
+        setMeditationParts(built.parts);
+      }
+
+      // Re-save locally so this same context works without asking again next time.
+      try {
+        const encoded = encodeToParam({
+          goal: data.goal,
+          reading: data.reading,
+          visualization: data.visualization,
+          email: data.email,
+          name: data.name,
+        });
+        localStorage.setItem("magi_saved_reading", encoded);
+      } catch (e) {
+        // Not critical — worst case, they just need to enter their email again next time.
+      }
+
+      setShowProfileRecovery(false);
+      setStage("hub");
+    } catch (e) {
+      setRecoveryEmailError("Something went wrong. Check your connection and try again.");
+    } finally {
+      setRecoveryEmailLoading(false);
     }
   }
 
-  async function requestInstantRead() {
-    if (!instantReadQuestion.trim()) return;
+  async function refreshReadStatus(email) {
+    if (!email) return;
+    try {
+      const response = await fetch(`${WORKER_URL}/read-status`, {
+        method: "POST",
+        body: JSON.stringify({ email }),
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      setCredits(data.credits);
+    } catch (e) {
+      // Not critical — worst case, the count stays at its default until
+      // their next actual read attempt corrects it anyway.
+    }
+  }
+
+  async function requestInstantRead(overrideQuestion) {
+    const questionToAsk = overrideQuestion || instantReadQuestion;
+    if (!questionToAsk.trim()) return;
+
+    // Testing shortcut — type "test888" to preview the out-of-credits /
+    // purchase-prompt state instantly. Never hits the Worker or Claude,
+    // so it costs nothing and works even offline.
+    if (questionToAsk.trim().toLowerCase() === "test888") {
+      setInstantReadError("out_of_reads");
+      setCredits(0);
+      setInstantReadResponse(null);
+      setInstantReadCards(null);
+      setInstantReadSuggestedFollowUp(null);
+      setInstantReadQuestion("");
+      return;
+    }
+
     setInstantReadLoading(true);
     setInstantReadError(null);
     setInstantReadResponse(null);
+    setInstantReadCards(null);
+    setInstantReadSuggestedFollowUp(null);
+    setInstantReadIsCrisis(false);
+    setInstantReadPrayerOffer(null);
+    setPrayerCast(null);
     try {
       const response = await fetch(`${WORKER_URL}/instant-read`, {
         method: "POST",
-        body: JSON.stringify({ email: emailInput, question: instantReadQuestion }),
+        body: JSON.stringify({ email: emailInput, question: questionToAsk }),
       });
       const data = await response.json();
       if (response.status === 402) {
         setInstantReadError("out_of_reads");
-        setFreeReadsRemaining(0);
-        setReadCredits(data.credits || 0);
+        setCredits(data.credits || 0);
         return;
       }
       if (!response.ok) {
         throw new Error(data.error || "Something went wrong. Try again.");
       }
       setInstantReadResponse(data.response);
-      setFreeReadsRemaining(data.freeRemaining);
-      setReadCredits(data.credits);
+      setInstantReadCards(data.cards || null);
+      setInstantReadIsCrisis(!!data.isCrisis);
+      setInstantReadSuggestedFollowUp(data.suggestedFollowUp || null);
+      setInstantReadPrayerOffer(data.prayerOffer || null);
+      setCredits(data.credits);
       setInstantReadQuestion("");
     } catch (e) {
       setInstantReadError(e.message || "Something went wrong. Try again.");
     } finally {
       setInstantReadLoading(false);
+    }
+  }
+
+  async function castPrayer(prayerTitle) {
+    setPrayerLoading(true);
+    setInstantReadPrayerOffer(null);
+    try {
+      const response = await fetch(`${WORKER_URL}/cast-prayer`, {
+        method: "POST",
+        body: JSON.stringify({ email: emailInput, prayerTitle }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Something went wrong. Try again.");
+      }
+      setPrayerCast({ title: data.prayerTitle, text: data.prayer, suggestedFollowUp: data.suggestedFollowUp });
+    } catch (e) {
+      setInstantReadError(e.message || "Something went wrong. Try again.");
+    } finally {
+      setPrayerLoading(false);
+    }
+  }
+
+
+
+  function goToReadingFromHub() {
+    let d = null;
+    try {
+      d = localStorage.getItem("magi_saved_reading");
+    } catch (e) {
+      d = null;
+    }
+    if (!d) {
+      setStage("intro");
+      return;
+    }
+    try {
+      const saved = decodeFromParam(d);
+      setGoal(saved.goal);
+      setReading(saved.reading);
+      setEmailInput(saved.email || "");
+      setNameInput(saved.name || "");
+      setStage("reading");
+      refreshReadStatus(saved.email);
+    } catch (e) {
+      console.error("Failed to restore saved reading from hub:", e);
+      setVoiceError("Couldn't load your saved reading. Try again, or start fresh below.");
+      setStage("intro");
+    }
+  }
+
+  function goToMeditationFromHub() {
+    let d = null;
+    try {
+      d = localStorage.getItem("magi_saved_reading");
+    } catch (e) {
+      d = null;
+    }
+    if (!d) {
+      // Nothing saved on this device yet — send them into the normal
+      // first-time flow instead of a blank meditation screen.
+      setStage("intro");
+      return;
+    }
+    try {
+      const saved = decodeFromParam(d);
+      const built = buildMeditation(saved.visualization);
+      setGoal(saved.goal);
+      setReading(saved.reading);
+      setMeditation(built.fullMeditation);
+      setMeditationParts(built.parts);
+      setEmailInput(saved.email || "");
+      setNameInput(saved.name || "");
+      setSavedCode("saved");
+      setUnlocked(true);
+      setStage("meditation");
+      startTone();
+      refreshReadStatus(saved.email);
+    } catch (e) {
+      console.error("Failed to restore saved meditation from hub:", e);
+      setVoiceError("Couldn't load your saved reading. Try again, or start fresh below.");
+      setStage("intro");
     }
   }
 
@@ -926,6 +1201,291 @@ Respond ONLY with a JSON object, no markdown, no preamble:
         p, li { font-size: 1.12rem; }
       `}</style>
 
+      {emailInput && (
+        <>
+          <div
+            style={{
+              position: "fixed",
+              top: "1rem",
+              left: "1rem",
+              background: "#FFFFFF",
+              border: "1px solid rgba(0,0,0,0.1)",
+              borderRadius: "50%",
+              width: 38,
+              height: 38,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+              zIndex: 20,
+              cursor: "pointer",
+            }}
+            onClick={() => {
+              stopTone();
+              stopSpeaking();
+              setStage("hub");
+            }}
+          >
+            <Home size={16} style={{ color: "#0D9488" }} />
+          </div>
+          <div
+            style={{
+              position: "fixed",
+              top: "1rem",
+              left: "4.2rem",
+              background: "#FFFFFF",
+              border: "1px solid rgba(0,0,0,0.1)",
+              borderRadius: "50%",
+              width: 38,
+              height: 38,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+              zIndex: 20,
+              cursor: "pointer",
+            }}
+            onClick={() => setShowTonePopup(true)}
+          >
+            <Volume2 size={16} style={{ color: "#0D9488" }} />
+          </div>
+          <div
+            style={{
+              position: "fixed",
+              top: "1rem",
+              right: "1rem",
+              background: "#FFFFFF",
+              border: "1px solid rgba(184,20,38,0.35)",
+              borderRadius: 20,
+              padding: "0.5em 1em",
+              fontSize: "0.85rem",
+              fontWeight: 700,
+              color: "#b81426",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
+              zIndex: 20,
+            }}
+          >
+            {credits} 💎
+          </div>
+        </>
+      )}
+
+      {showTonePopup && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "6vw",
+            zIndex: 100,
+          }}
+          onClick={() => setShowTonePopup(false)}
+        >
+          <div
+            style={{ background: "#F2F2F7", borderRadius: 18, padding: "1.8rem 1.5rem", maxWidth: 340, width: "100%", textAlign: "center" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="cinzel" style={{ fontSize: "1.2rem", marginBottom: "1.2rem" }}>
+              🎵 Healing Tone
+            </h2>
+            <button
+              className="glow-btn"
+              onClick={tonePlaying ? stopTone : startTone}
+              style={{ width: "100%", marginBottom: "1.2rem" }}
+            >
+              {tonePlaying ? <Square size={13} /> : <Play size={13} />}
+              {" "}{tonePlaying ? "Pause Tone" : "Play Healing Tone"}
+            </button>
+            <div style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginBottom: "1.2rem" }}>
+              <Volume2 size={14} style={{ color: "#6E6E73" }} />
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.02"
+                value={toneVolume}
+                onChange={(e) => handleVolumeChange(Number(e.target.value))}
+                style={{ flex: 1 }}
+              />
+              <span style={{ color: "#6E6E73", fontSize: "0.85rem", minWidth: "2.5em" }}>{Math.round(toneVolume * 100)}%</span>
+            </div>
+            <button
+              className="ghost-btn"
+              onClick={() => setShowTonePopup(false)}
+              style={{ width: "100%" }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showReminderTimePopup && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "6vw",
+            zIndex: 100,
+          }}
+          onClick={() => setShowReminderTimePopup(false)}
+        >
+          <div
+            style={{ background: "#F2F2F7", borderRadius: 18, padding: "1.8rem 1.5rem", maxWidth: 340, width: "100%", textAlign: "center" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 className="cinzel" style={{ fontSize: "1.2rem", marginBottom: "0.8rem" }}>
+              🔔 When should we remind you?
+            </h2>
+            <p style={{ color: "#6E6E73", fontSize: "0.9rem", marginBottom: "1.2rem", lineHeight: 1.5 }}>
+              Pick a time for your daily reminder, then we'll turn notifications on.
+            </p>
+            <select
+              className="field"
+              value={reminderHourLocal}
+              onChange={(e) => setReminderHourLocal(Number(e.target.value))}
+              style={{ marginBottom: "1.2rem" }}
+            >
+              {Array.from({ length: 24 }, (_, h) => h).map((h) => {
+                const label = h === 0 ? "12:00 AM" : h < 12 ? `${h}:00 AM` : h === 12 ? "12:00 PM" : `${h - 12}:00 PM`;
+                return (
+                  <option key={h} value={h}>{label}</option>
+                );
+              })}
+            </select>
+            <button
+              className="glow-btn"
+              onClick={() => {
+                setShowReminderTimePopup(false);
+                enableNotifications();
+              }}
+              style={{ width: "100%" }}
+            >
+              Save Time & Enable Notifications
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showHomeScreenPopup && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "6vw",
+            zIndex: 100,
+          }}
+          onClick={() => setShowHomeScreenPopup(false)}
+        >
+          <div
+            style={{ background: "#F2F2F7", borderRadius: 18, padding: "1.8rem 1.5rem", maxWidth: 380, width: "100%", textAlign: "left", maxHeight: "85vh", overflowY: "auto" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <p style={{ color: "#0D9488", fontWeight: 700, fontSize: "1.1rem", margin: "0 0 0.9rem", textAlign: "center" }}>
+              📲 Save This — Add to Your Home Screen
+            </p>
+            <p style={{ color: "#1C1C1E", fontSize: "0.98rem", fontWeight: 700, margin: "0 0 1.1rem", lineHeight: 1.6, textAlign: "center" }}>
+              This saves your meditation and turns on daily reminders to actually do it.
+            </p>
+            {isAndroid() ? (
+              <>
+                <p style={{ color: "#1C1C1E", fontSize: "0.95rem", margin: "0 0 0.5rem", lineHeight: 1.6 }}>
+                  <strong>1.</strong> Tap the ⋮ menu (top right of your screen)
+                </p>
+                <p style={{ color: "#1C1C1E", fontSize: "0.95rem", margin: "0 0 0.9rem", lineHeight: 1.6 }}>
+                  <strong>2.</strong> Tap "Add to Home screen," then "Add"
+                </p>
+                <img src="android-add-home.png" alt="How to add to home screen on Android" style={{ width: "100%", borderRadius: 10, marginBottom: "1.1rem" }} />
+              </>
+            ) : (
+              <>
+                <p style={{ color: "#1C1C1E", fontSize: "0.95rem", margin: "0 0 0.5rem", lineHeight: 1.6 }}>
+                  <strong>1.</strong> Tap the Share icon (⬆️ square) at the bottom of your screen
+                </p>
+                <p style={{ color: "#1C1C1E", fontSize: "0.95rem", margin: "0 0 0.5rem", lineHeight: 1.6 }}>
+                  <strong>2.</strong> Scroll down and tap "Add to Home Screen"
+                </p>
+                <p style={{ color: "#1C1C1E", fontSize: "0.95rem", margin: "0 0 0.9rem", lineHeight: 1.6 }}>
+                  <strong>3.</strong> Tap "Add" in the top right
+                </p>
+                <img src="ios-add-home.png" alt="How to add to home screen on iPhone" style={{ width: "100%", borderRadius: 10, marginBottom: "1.1rem" }} />
+              </>
+            )}
+            <button
+              className="ghost-btn"
+              onClick={() => setShowHomeScreenPopup(false)}
+              style={{ width: "100%" }}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {showProfileRecovery && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.5)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "6vw",
+            zIndex: 100,
+          }}
+        >
+          <div style={{ background: "#F2F2F7", borderRadius: 18, padding: "2rem 1.6rem", maxWidth: 420, width: "100%", textAlign: "center" }}>
+            <h2 className="cinzel" style={{ fontSize: "1.4rem", marginBottom: "1rem" }}>
+              Welcome back.
+            </h2>
+            <p style={{ color: "#6E6E73", fontStyle: "italic", marginBottom: "1.4rem", lineHeight: 1.6 }}>
+              Already have a reading? Enter the email you used, and we'll pull it up.
+            </p>
+            <input
+              type="email"
+              className="field"
+              placeholder="you@email.com"
+              value={recoveryEmailInput}
+              onChange={(e) => setRecoveryEmailInput(e.target.value)}
+              style={{ marginBottom: "1rem" }}
+            />
+            {recoveryEmailError && (
+              <p style={{ color: "#DC2645", fontSize: "0.9rem", marginBottom: "1rem" }}>{recoveryEmailError}</p>
+            )}
+            <button
+              className="glow-btn"
+              onClick={() => loadProfileByEmail(recoveryEmailInput)}
+              disabled={recoveryEmailLoading || !recoveryEmailInput.trim()}
+              style={{ width: "100%", marginBottom: "1rem" }}
+            >
+              {recoveryEmailLoading ? "Loading..." : "Load My Reading"}
+            </button>
+            <button
+              className="ghost-btn"
+              onClick={() => {
+                setShowProfileRecovery(false);
+                setStage("intro");
+              }}
+              style={{ width: "100%" }}
+            >
+              Start Fresh Instead
+            </button>
+          </div>
+        </div>
+      )}
+
       <div style={{ maxWidth: 560, width: "100%", textAlign: "center", position: "relative", zIndex: 1 }}>
         <svg width="40" height="40" viewBox="0 0 100 100" style={{ marginBottom: "0.8rem" }}>
           <polygon
@@ -936,6 +1496,179 @@ Respond ONLY with a JSON object, no markdown, no preamble:
         <div className="cinzel" style={{ fontSize: "0.78rem", letterSpacing: "0.28em", color: "#0D9488", textTransform: "uppercase", marginBottom: "1.2rem" }}>
           888
         </div>
+
+        {stage === "hub" && (
+          <>
+            <h1 className="cinzel" style={{ fontSize: "1.7rem", marginBottom: "2rem" }}>
+              Welcome back.
+            </h1>
+            <button
+              className="glow-btn"
+              onClick={() => goToMeditationFromHub()}
+              style={{ width: "100%", marginBottom: "1rem" }}
+            >
+              Continue My Meditation
+            </button>
+            <button
+              className="ghost-btn"
+              onClick={goToReadingFromHub}
+              style={{ width: "100%", marginBottom: "1rem" }}
+            >
+              My Reading
+            </button>
+            {credits >= NEW_MEDITATION_COST ? (
+              <button
+                className="ghost-btn"
+                onClick={() => {
+                  setConsumingNewMeditationCredit(true);
+                  setGoal("");
+                  setStage("goal");
+                }}
+                style={{ width: "100%", marginTop: "1rem" }}
+              >
+                Start a New Meditation — {NEW_MEDITATION_COST}💎
+              </button>
+            ) : (
+              <a
+                href={`https://buy.stripe.com/fZueVdaPo3gQ3XtaBqdAk04?prefilled_email=${encodeURIComponent(emailInput)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="ghost-btn"
+                style={{ width: "100%", marginTop: "1rem", textDecoration: "none", display: "block", textAlign: "center", boxSizing: "border-box" }}
+              >
+                Start a New Meditation — {NEW_MEDITATION_COST}💎 ($8.88)
+              </a>
+            )}
+
+            <div style={{ background: "#FFFFFF", border: "2px solid rgba(184,20,38,0.45)", borderRadius: 14, padding: "1.4rem 1.4rem", marginTop: "1.4rem", textAlign: "left" }}>
+              <h2 className="cinzel" style={{ fontSize: "1.2rem", marginBottom: "0.5rem", textAlign: "center" }}>✨ Instant Reads</h2>
+              <p style={{ color: "#6E6E73", fontSize: "0.92rem", marginBottom: "1rem", textAlign: "center" }}>
+                Got a specific situation on your mind? Ask, and get a reading tied directly to your identity.
+              </p>
+
+              {instantReadLoading && (
+                <div style={{ padding: "2rem 0", textAlign: "center" }}>
+                  <Loader2 size={30} style={{ color: "#b81426", animation: "spin 1.2s linear infinite" }} />
+                  <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                  <p style={{ color: "#6E6E73", fontStyle: "italic", marginTop: "1rem" }}>Drawing your cards...</p>
+                </div>
+              )}
+
+              {instantReadIsCrisis && instantReadResponse && (
+                <div style={{ background: "#FFFFFF", border: "2px solid rgba(13,148,136,0.4)", borderRadius: 10, padding: "1.2rem", marginBottom: "1rem", textAlign: "left" }}>
+                  <p style={{ color: "#1C1C1E", lineHeight: 1.7, margin: 0 }}>{instantReadResponse}</p>
+                </div>
+              )}
+
+              {!instantReadIsCrisis && instantReadResponse && (
+                <div style={{ background: "#F2F2F7", borderRadius: 10, padding: "1rem", marginBottom: "1rem" }}>
+                  {instantReadCards && (
+                    <p style={{ color: "#b81426", fontSize: "0.78rem", fontWeight: 700, letterSpacing: "0.04em", marginBottom: "0.7rem" }}>
+                      {instantReadCards.join(" · ")}
+                    </p>
+                  )}
+                  <p style={{ color: "#1C1C1E", lineHeight: 1.7, margin: 0 }}>{instantReadResponse}</p>
+                </div>
+              )}
+
+              {prayerLoading && (
+                <div style={{ padding: "1.5rem 0", textAlign: "center" }}>
+                  <Loader2 size={26} style={{ color: "#b81426", animation: "spin 1.2s linear infinite" }} />
+                </div>
+              )}
+
+              {prayerCast && (
+                <div style={{ background: "#FFFFFF", border: "1px solid rgba(184,20,38,0.3)", borderRadius: 10, padding: "1.1rem", marginBottom: "1rem", textAlign: "left" }}>
+                  <p style={{ color: "#b81426", fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.06em", marginBottom: "0.7rem", textTransform: "uppercase" }}>
+                    {prayerCast.title}
+                  </p>
+                  <p style={{ color: "#1C1C1E", lineHeight: 1.75, margin: 0, fontStyle: "italic" }}>{prayerCast.text}</p>
+                </div>
+              )}
+
+              {prayerCast && prayerCast.suggestedFollowUp && (
+                <div style={{ textAlign: "center", marginBottom: "1.2rem" }}>
+                  <button
+                    className="glow-btn"
+                    onClick={() => requestInstantRead(prayerCast.suggestedFollowUp)}
+                    disabled={instantReadLoading || credits < 1}
+                    style={{ width: "100%", marginBottom: "0.6rem", background: "#b81426" }}
+                  >
+                    Yes — {prayerCast.suggestedFollowUp} <span style={{ opacity: 0.7, fontWeight: 400, fontSize: "0.85em" }}>1💎</span>
+                  </button>
+                  <p style={{ color: "#6E6E73", fontSize: "0.8rem", margin: 0 }}>or ask something else below</p>
+                </div>
+              )}
+
+              {!prayerCast && instantReadPrayerOffer && (
+                <div style={{ textAlign: "center", marginBottom: "1.2rem" }}>
+                  <button
+                    className="glow-btn"
+                    onClick={() => castPrayer(instantReadPrayerOffer)}
+                    disabled={prayerLoading}
+                    style={{ width: "100%", marginBottom: "0.6rem", background: "#b81426" }}
+                  >
+                    {prayerLoading ? "..." : `Yes, Cast the Spell — ${instantReadPrayerOffer}`}
+                  </button>
+                  <p style={{ color: "#6E6E73", fontSize: "0.8rem", margin: 0 }}>or ask something else below</p>
+                </div>
+              )}
+
+              {!prayerCast && !instantReadPrayerOffer && instantReadSuggestedFollowUp && (
+                <div style={{ textAlign: "center", marginBottom: "1.2rem" }}>
+                  <button
+                    className="glow-btn"
+                    onClick={() => requestInstantRead(instantReadSuggestedFollowUp)}
+                    disabled={instantReadLoading || credits < 1}
+                    style={{ width: "100%", marginBottom: "0.6rem", background: "#b81426" }}
+                  >
+                    Yes — {instantReadSuggestedFollowUp} <span style={{ opacity: 0.7, fontWeight: 400, fontSize: "0.85em" }}>1💎</span>
+                  </button>
+                  <p style={{ color: "#6E6E73", fontSize: "0.8rem", margin: 0 }}>or ask something else below</p>
+                </div>
+              )}
+
+              {instantReadError === "out_of_reads" ? (
+                <div style={{ textAlign: "center" }}>
+                  <p style={{ color: "#6E6E73", marginBottom: "1rem" }}>
+                    You're out of credits. Refill to keep going.
+                  </p>
+                  <a
+                    href={`https://buy.stripe.com/fZueVdaPo3gQ3XtaBqdAk04?prefilled_email=${encodeURIComponent(emailInput)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="glow-btn"
+                    style={{ textDecoration: "none", display: "inline-block", background: "#b81426" }}
+                  >
+                    Refill — 12💎 for $8.88
+                  </a>
+                </div>
+              ) : (
+                <>
+                  <textarea
+                    className="field"
+                    rows={4}
+                    placeholder="What's on your mind? Be as specific as you'd like..."
+                    value={instantReadQuestion}
+                    onChange={(e) => setInstantReadQuestion(e.target.value)}
+                    style={{ marginBottom: "1rem" }}
+                  />
+                  <button
+                    className="glow-btn"
+                    onClick={() => requestInstantRead()}
+                    disabled={instantReadLoading || !instantReadQuestion.trim()}
+                    style={{ width: "100%", background: "#b81426" }}
+                  >
+                    {instantReadLoading ? "Reading..." : "Get My Instant Read — 1💎"}
+                  </button>
+                  {instantReadError && instantReadError !== "out_of_reads" && (
+                    <p style={{ color: "#DC2645", fontSize: "0.9rem", marginTop: "0.8rem" }}>{instantReadError}</p>
+                  )}
+                </>
+              )}
+            </div>
+          </>
+        )}
 
         {stage === "intro" && (
           <>
@@ -950,8 +1683,7 @@ Respond ONLY with a JSON object, no markdown, no preamble:
             <p style={{ color: "#6E6E73", marginBottom: "2rem", lineHeight: 1.6 }}>
               Afterward, you'll receive a free guided meditation to lovingly begin
               the alchemy — the identity transformation into the Magician, your
-              fully embodied higher self — plus the full beginner's guide to the
-              Magician's Path.
+              fully embodied higher self.
             </p>
             <button className="glow-btn" onClick={() => setStage("goal")}>
               Begin <ArrowRight size={16} style={{ verticalAlign: "middle", marginLeft: 6 }} />
@@ -1111,16 +1843,6 @@ Respond ONLY with a JSON object, no markdown, no preamble:
             {reading && !loading && (
               <>
                 <h2 className="cinzel" style={{ fontSize: "1.4rem", marginBottom: "1.2rem" }}>Your Reading</h2>
-                {savedCode && (
-                  <div style={{ background: "rgba(13,148,136,0.08)", border: "1px solid rgba(13,148,136,0.35)", borderRadius: 10, padding: "0.8rem 1rem", marginBottom: "1.4rem" }}>
-                    <p style={{ color: "#0D9488", fontWeight: 700, fontSize: "1rem", margin: "0 0 0.7rem" }}>
-                      Save this link now — it brings you straight back to this exact reading anytime.
-                    </p>
-                    <button className="audio-btn" onClick={copyLink} style={{ width: "100%", justifyContent: "center" }}>
-                      {linkCopied ? "✓ Copied!" : "📋 Copy My Link"}
-                    </button>
-                  </div>
-                )}
                 <div style={{ textAlign: "left", marginBottom: "1.6rem" }}>
                   <div className="cinzel" style={{ fontSize: "0.85rem", color: STEPS[0].color, letterSpacing: "0.08em", marginBottom: "0.4rem" }}>{STEPS[0].label}</div>
                   <p style={{ color: "#1C1C1E", lineHeight: 1.75, marginBottom: "1.3rem" }}>{reading.archetype}</p>
@@ -1131,11 +1853,33 @@ Respond ONLY with a JSON object, no markdown, no preamble:
                   <div className="cinzel" style={{ fontSize: "0.85rem", color: STEPS[3].color, letterSpacing: "0.08em", marginBottom: "0.4rem" }}>{STEPS[3].label}</div>
                   <p style={{ color: "#1C1C1E", lineHeight: 1.75 }}>{reading.whoYouBecome}</p>
                 </div>
-                <button className="glow-btn" onClick={() => setStage("oath")}>
+                <button
+                  className="glow-btn"
+                  onClick={() => setStage(isInstagramBrowser() ? "browser-check" : "oath")}
+                >
                   Receive Your Meditation
                 </button>
               </>
             )}
+          </>
+        )}
+
+        {stage === "browser-check" && (
+          <>
+            <h2 className="cinzel" style={{ fontSize: "1.4rem", marginBottom: "1.2rem" }}>
+              One Quick Thing
+            </h2>
+            <div style={{ background: "#FFFFFF", border: "1px solid rgba(13,148,136,0.3)", borderRadius: 14, padding: "1.6rem", marginBottom: "1.6rem", textAlign: "left" }}>
+              <p style={{ color: "#1C1C1E", lineHeight: 1.7, marginBottom: "1rem" }}>
+                You're viewing this inside Instagram right now — which means you won't be able to save your meditation or turn on reminders.
+              </p>
+              <p style={{ color: "#1C1C1E", lineHeight: 1.7, marginBottom: "1rem", fontWeight: 700 }}>
+                Tap the ••• (or ⋮) menu at the top right of this screen, then choose "Open in Browser" (or "Open in Safari").
+              </p>
+              <p style={{ color: "#6E6E73", lineHeight: 1.7, margin: 0, fontStyle: "italic" }}>
+                You'll land right back here, ready to continue — that's it.
+              </p>
+            </div>
           </>
         )}
 
@@ -1165,47 +1909,28 @@ Respond ONLY with a JSON object, no markdown, no preamble:
 
         {stage === "meditation" && unlocked && (
           <>
+            {savedCode && !window.matchMedia("(display-mode: standalone)").matches && (
+              <div style={{ display: "flex", alignItems: "center", gap: "0.7rem", background: "rgba(13,148,136,0.08)", border: "1px solid rgba(13,148,136,0.35)", borderRadius: 10, padding: "0.8rem 1rem", marginBottom: "1.4rem" }}>
+                <img
+                  src={isAndroid() ? "android-menu-icon-only.png" : "ios-share-icon-only.png"}
+                  alt=""
+                  style={{ width: 32, height: 32, flexShrink: 0 }}
+                />
+                <p style={{ color: "#0D9488", fontWeight: 700, fontSize: "0.92rem", margin: 0, lineHeight: 1.4 }}>
+                  Add to Home Screen for the best experience
+                </p>
+              </div>
+            )}
             <h2 className="cinzel" style={{ fontSize: "1.4rem", marginBottom: "1rem" }}>Your Meditation</h2>
             <p style={{ color: "#6E6E73", marginBottom: "1rem", fontStyle: "italic" }}>
               Sit down. Get comfortable. Let yourself settle in fully. Make sure
               you are not operating any machinery.
             </p>
-            {savedCode && (
-              <div style={{ background: "rgba(13,148,136,0.08)", border: "1px solid rgba(13,148,136,0.35)", borderRadius: 10, padding: "0.8rem 1rem", marginBottom: "1.2rem" }}>
-                <p style={{ color: "#0D9488", fontWeight: 700, fontSize: "1rem", margin: "0 0 0.7rem" }}>
-                  Save this link now — it's your way back, every day, for the next eight days.
-                </p>
-                <button className="audio-btn" onClick={copyLink} style={{ width: "100%", justifyContent: "center" }}>
-                  {linkCopied ? "✓ Copied!" : "📋 Copy My Link"}
-                </button>
-              </div>
-            )}
             {voiceError && (
               <p style={{ color: "#DC2645", fontSize: "0.9rem", marginBottom: "1rem" }}>
                 {voiceError}
               </p>
             )}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "0.7rem", marginBottom: "1.2rem" }}>
-              <button
-                className="audio-btn"
-                onClick={tonePlaying ? stopTone : startTone}
-                style={{ padding: "0.5em 0.9em" }}
-              >
-                {tonePlaying ? <Square size={13} /> : <Play size={13} />}
-                {tonePlaying ? "Pause Tone" : "Play Healing Tone"}
-              </button>
-              <Volume2 size={14} style={{ color: "#6E6E73" }} />
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.02"
-                value={toneVolume}
-                onChange={(e) => handleVolumeChange(Number(e.target.value))}
-                style={{ width: 120 }}
-              />
-              <span style={{ color: "#6E6E73", fontSize: "0.85rem" }}>{Math.round(toneVolume * 100)}%</span>
-            </div>
             <div className="audio-row">
               <button className="audio-btn" onClick={speaking ? stopSpeaking : speakMeditation}>
                 {speaking ? <Square size={13} /> : <Play size={13} />}
@@ -1226,7 +1951,7 @@ Respond ONLY with a JSON object, no markdown, no preamble:
                 <Download size={13} /> Save as Text
               </button>
               {notifStatus === "default" && (
-                <button className="audio-btn" onClick={enableNotifications}>
+                <button className="audio-btn" onClick={handleEnableNotificationsClick}>
                   🔔 Enable Notifications
                 </button>
               )}
@@ -1236,6 +1961,9 @@ Respond ONLY with a JSON object, no markdown, no preamble:
                 </span>
               )}
             </div>
+            <p style={{ textAlign: "center", color: "#C7C7CC", fontSize: "0.72rem", marginBottom: "1rem" }}>
+              notifStatus: {notifStatus}
+            </p>
             {meditationParts ? (
               <div style={{ textAlign: "left", marginBottom: "2rem" }}>
                 <p style={{ color: "#1C1C1E", lineHeight: 1.85, whiteSpace: "pre-line", marginBottom: "1.2rem" }}>
@@ -1268,8 +1996,6 @@ Respond ONLY with a JSON object, no markdown, no preamble:
                   <strong style={{ color: "#0D9488" }}>
                     {meditationParts.reminder}
                   </strong>
-                  <br /><br />
-                  {meditationParts.reciprocity}
                 </p>
               </div>
             ) : (
@@ -1277,85 +2003,152 @@ Respond ONLY with a JSON object, no markdown, no preamble:
                 {meditation}
               </p>
             )}
-            <div ref={donationRef} style={{ background: "#FFFFFF", border: "1px solid rgba(13,148,136,0.25)", borderRadius: 14, padding: "1.3rem 1.5rem", marginBottom: "1.8rem" }}>
-              <p style={{ color: "#6E6E73", fontStyle: "italic", marginBottom: "0.9rem" }}>
-                Optional — amplify your intention by reciprocating energy.
-                The number 888 also resonates with abundance and the higher self.
+
+            <div style={{ background: "#FFFFFF", border: "2px solid rgba(184,20,38,0.45)", borderRadius: 14, padding: "1.4rem 1.4rem", textAlign: "center" }}>
+              <p style={{ color: "#1C1C1E", fontWeight: 700, fontSize: "1.15rem", lineHeight: 1.5, marginBottom: "0.6rem" }}>
+                Have any questions, or need clarity at any point on your path?
               </p>
-              <a
-                href="https://buy.stripe.com/bJeaEX1eO8BactZ8tidAk02"
-                target="_blank"
-                rel="noopener noreferrer"
+              <p style={{ color: "#1C1C1E", fontWeight: 700, fontSize: "1.15rem", lineHeight: 1.5, marginBottom: "1rem" }}>
+                Do an Instant Read.
+              </p>
+              <button
                 className="glow-btn"
-                style={{ textDecoration: "none", display: "inline-block" }}
+                onClick={() => setStage("instant-reads")}
+                style={{ width: "100%", background: "#b81426" }}
               >
-                Send $8.88
-              </a>
+                ✨ Instant Read <span style={{ opacity: 0.7, fontWeight: 400, fontSize: "0.85em" }}>1💎</span>
+              </button>
             </div>
-            <p style={{ color: "#6E6E73", fontStyle: "italic", marginBottom: "0.8rem" }}>
-              Your full beginner's guide has been sent to your email.
+          </>
+        )}
+
+        {stage === "instant-reads" && (
+          <>
+            <h2 className="cinzel" style={{ fontSize: "1.4rem", marginBottom: "0.5rem" }}>✨ Instant Reads</h2>
+            <p style={{ color: "#6E6E73", fontSize: "0.95rem", marginBottom: "1.4rem" }}>
+              Got a specific situation on your mind? Ask, and get a reading tied directly to your identity.
             </p>
 
-            <div style={{ background: "#FFFFFF", border: "1px solid rgba(13,148,136,0.25)", borderRadius: 14, padding: "1.4rem 1.5rem", marginTop: "1.8rem", marginBottom: "1.8rem", textAlign: "left" }}>
-              <h3 className="cinzel" style={{ fontSize: "1.15rem", marginBottom: "0.5rem" }}>✨ Instant Reads</h3>
-              <p style={{ color: "#6E6E73", fontSize: "0.95rem", marginBottom: "1rem" }}>
-                Got a specific situation on your mind? Ask, and get a reading tied directly to your identity above.
-              </p>
-              <p style={{ color: "#0D9488", fontWeight: 700, fontSize: "0.85rem", marginBottom: "1rem" }}>
-                {readCredits > 0
-                  ? `${readCredits} read${readCredits === 1 ? "" : "s"} remaining`
-                  : `${freeReadsRemaining} free read${freeReadsRemaining === 1 ? "" : "s"} remaining`}
-              </p>
+            {instantReadLoading && (
+              <div style={{ padding: "2rem 0", textAlign: "center" }}>
+                <Loader2 size={30} style={{ color: "#b81426", animation: "spin 1.2s linear infinite" }} />
+                <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                <p style={{ color: "#6E6E73", fontStyle: "italic", marginTop: "1rem" }}>Drawing your cards...</p>
+              </div>
+            )}
 
-              {instantReadResponse && (
-                <div style={{ background: "#F2F2F7", borderRadius: 10, padding: "1rem", marginBottom: "1rem" }}>
-                  <p style={{ color: "#1C1C1E", lineHeight: 1.7, margin: 0 }}>{instantReadResponse}</p>
-                </div>
-              )}
+            {instantReadIsCrisis && instantReadResponse && (
+              <div style={{ background: "#FFFFFF", border: "2px solid rgba(13,148,136,0.4)", borderRadius: 10, padding: "1.2rem", marginBottom: "1rem", textAlign: "left" }}>
+                <p style={{ color: "#1C1C1E", lineHeight: 1.7, margin: 0 }}>{instantReadResponse}</p>
+              </div>
+            )}
 
-              {instantReadError === "out_of_reads" ? (
-                <div style={{ textAlign: "center" }}>
-                  <p style={{ color: "#6E6E73", marginBottom: "1rem" }}>
-                    You're out of free reads. Get 12 more for $8.88.
+            {!instantReadIsCrisis && instantReadResponse && (
+              <div style={{ background: "#FFFFFF", border: "1px solid rgba(13,148,136,0.25)", borderRadius: 10, padding: "1rem", marginBottom: "1rem", textAlign: "left" }}>
+                {instantReadCards && (
+                  <p style={{ color: "#b81426", fontSize: "0.78rem", fontWeight: 700, letterSpacing: "0.04em", marginBottom: "0.7rem" }}>
+                    {instantReadCards.join(" · ")}
                   </p>
-                  <a
-                    href="#"
-                    className="glow-btn"
-                    style={{ textDecoration: "none", display: "inline-block", opacity: 0.6, cursor: "not-allowed" }}
-                    onClick={(e) => e.preventDefault()}
-                  >
-                    Get 12 Reads — $8.88 (coming soon)
-                  </a>
-                </div>
-              ) : (
-                <>
-                  <textarea
-                    className="field"
-                    rows={3}
-                    placeholder="What's on your mind? Be as specific as you'd like..."
-                    value={instantReadQuestion}
-                    onChange={(e) => setInstantReadQuestion(e.target.value)}
-                    style={{ marginBottom: "1rem" }}
-                  />
-                  <button
-                    className="glow-btn"
-                    onClick={requestInstantRead}
-                    disabled={instantReadLoading || !instantReadQuestion.trim()}
-                    style={{ width: "100%" }}
-                  >
-                    {instantReadLoading ? "Reading..." : "Get My Instant Read"}
-                  </button>
-                  {instantReadError && instantReadError !== "out_of_reads" && (
-                    <p style={{ color: "#DC2645", fontSize: "0.9rem", marginTop: "0.8rem" }}>{instantReadError}</p>
-                  )}
-                </>
-              )}
-            </div>
+                )}
+                <p style={{ color: "#1C1C1E", lineHeight: 1.7, margin: 0 }}>{instantReadResponse}</p>
+              </div>
+            )}
 
-            <p style={{ color: "#0D9488", fontWeight: 700 }}>
-              One last reminder — save this page's link now, so you can return to
-              your meditation every day, for the next eight days.
-            </p>
+            {prayerLoading && (
+              <div style={{ padding: "1.5rem 0", textAlign: "center" }}>
+                <Loader2 size={26} style={{ color: "#b81426", animation: "spin 1.2s linear infinite" }} />
+              </div>
+            )}
+
+            {prayerCast && (
+              <div style={{ background: "#FFFFFF", border: "1px solid rgba(184,20,38,0.3)", borderRadius: 10, padding: "1.1rem", marginBottom: "1rem", textAlign: "left" }}>
+                <p style={{ color: "#b81426", fontSize: "0.7rem", fontWeight: 700, letterSpacing: "0.06em", marginBottom: "0.7rem", textTransform: "uppercase" }}>
+                  {prayerCast.title}
+                </p>
+                <p style={{ color: "#1C1C1E", lineHeight: 1.75, margin: 0, fontStyle: "italic" }}>{prayerCast.text}</p>
+              </div>
+            )}
+
+            {prayerCast && prayerCast.suggestedFollowUp && (
+              <div style={{ textAlign: "center", marginBottom: "1.2rem" }}>
+                <button
+                  className="glow-btn"
+                  onClick={() => requestInstantRead(prayerCast.suggestedFollowUp)}
+                  disabled={instantReadLoading || credits < 1}
+                  style={{ width: "100%", marginBottom: "0.6rem", background: "#b81426" }}
+                >
+                  Yes — {prayerCast.suggestedFollowUp} <span style={{ opacity: 0.7, fontWeight: 400, fontSize: "0.85em" }}>1💎</span>
+                </button>
+                <p style={{ color: "#6E6E73", fontSize: "0.8rem", margin: 0 }}>or ask something else below</p>
+              </div>
+            )}
+
+            {!prayerCast && instantReadPrayerOffer && (
+              <div style={{ textAlign: "center", marginBottom: "1.2rem" }}>
+                <button
+                  className="glow-btn"
+                  onClick={() => castPrayer(instantReadPrayerOffer)}
+                  disabled={prayerLoading}
+                  style={{ width: "100%", marginBottom: "0.6rem", background: "#b81426" }}
+                >
+                  {prayerLoading ? "..." : `Yes, Cast the Spell — ${instantReadPrayerOffer}`}
+                </button>
+                <p style={{ color: "#6E6E73", fontSize: "0.8rem", margin: 0 }}>or ask something else below</p>
+              </div>
+            )}
+
+            {!prayerCast && !instantReadPrayerOffer && instantReadSuggestedFollowUp && (
+              <div style={{ textAlign: "center", marginBottom: "1.2rem" }}>
+                <button
+                  className="glow-btn"
+                  onClick={() => requestInstantRead(instantReadSuggestedFollowUp)}
+                  disabled={instantReadLoading || credits < 1}
+                  style={{ width: "100%", marginBottom: "0.6rem", background: "#b81426" }}
+                >
+                  Yes — {instantReadSuggestedFollowUp} <span style={{ opacity: 0.7, fontWeight: 400, fontSize: "0.85em" }}>1💎</span>
+                </button>
+                <p style={{ color: "#6E6E73", fontSize: "0.8rem", margin: 0 }}>or ask something else below</p>
+              </div>
+            )}
+
+            {instantReadError === "out_of_reads" ? (
+              <div style={{ textAlign: "center" }}>
+                <p style={{ color: "#6E6E73", marginBottom: "1rem" }}>
+                  You're out of credits. Refill to keep going.
+                </p>
+                <a
+                  href={`https://buy.stripe.com/fZueVdaPo3gQ3XtaBqdAk04?prefilled_email=${encodeURIComponent(emailInput)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="glow-btn"
+                  style={{ textDecoration: "none", display: "inline-block", background: "#b81426" }}
+                >
+                  Refill — 12💎 for $8.88
+                </a>
+              </div>
+            ) : (
+              <>
+                <textarea
+                  className="field"
+                  rows={4}
+                  placeholder="What's on your mind? Be as specific as you'd like..."
+                  value={instantReadQuestion}
+                  onChange={(e) => setInstantReadQuestion(e.target.value)}
+                  style={{ marginBottom: "1rem" }}
+                />
+                <button
+                  className="glow-btn"
+                  onClick={() => requestInstantRead()}
+                  disabled={instantReadLoading || !instantReadQuestion.trim()}
+                  style={{ width: "100%", background: "#b81426" }}
+                >
+                  {instantReadLoading ? "Reading..." : "Get My Instant Read — 1💎"}
+                </button>
+                {instantReadError && instantReadError !== "out_of_reads" && (
+                  <p style={{ color: "#DC2645", fontSize: "0.9rem", marginTop: "0.8rem" }}>{instantReadError}</p>
+                )}
+              </>
+            )}
           </>
         )}
       </div>
