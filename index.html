@@ -363,7 +363,7 @@ function TarotDraw() {
           // instructions since this is their real chance to actually save it.
           setStage("hub");
           const isStandalone = window.matchMedia("(display-mode: standalone)").matches;
-          if (!isStandalone) {
+          if (!isStandalone && !isInstagramBrowser()) {
             setShowHomeScreenPopup(true);
           }
         } else {
@@ -396,7 +396,7 @@ function TarotDraw() {
   useEffect(() => {
     if (stage !== "meditation" || !savedCode || hasAutoShownHomeScreenPopup) return;
     const isStandalone = window.matchMedia("(display-mode: standalone)").matches;
-    if (isStandalone) return;
+    if (isStandalone || isInstagramBrowser()) return;
 
     function handleScroll() {
       const scrolledToBottom = window.innerHeight + window.scrollY >= document.body.offsetHeight - 100;
@@ -986,7 +986,7 @@ Respond ONLY with a JSON object, no markdown, no preamble:
         await playClipUrl(url);
       }
       const isStandalone = window.matchMedia("(display-mode: standalone)").matches;
-      if (!isStandalone) {
+      if (!isStandalone && !isInstagramBrowser()) {
         setShowHomeScreenPopup(true);
       }
       setStage("instant-reads");
@@ -2234,7 +2234,7 @@ Respond ONLY with a JSON object, no markdown, no preamble:
 
         {stage === "meditation" && unlocked && (
           <>
-            {savedCode && !window.matchMedia("(display-mode: standalone)").matches && (
+            {savedCode && !window.matchMedia("(display-mode: standalone)").matches && !isInstagramBrowser() && (
               <div style={{ display: "flex", alignItems: "center", gap: "0.7rem", background: "rgba(13,148,136,0.08)", border: "1px solid rgba(13,148,136,0.35)", borderRadius: 10, padding: "0.8rem 1rem", marginBottom: "1.4rem" }}>
                 <img
                   src={isAndroid() ? "android-menu-icon-only.png" : "ios-share-icon-only.png"}
