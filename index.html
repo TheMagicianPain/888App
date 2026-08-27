@@ -277,6 +277,7 @@ function TarotDraw() {
   const speechAudioRef = useRef(null);
   const voiceGainRef = useRef(null);
   const speechTimeoutRef = useRef(null);
+  const speechWaitResolveRef = useRef(null);
   const stopFlagRef = useRef(false);
   const firstClipPrefetchRef = useRef(null);
 
@@ -705,6 +706,7 @@ Respond ONLY with a JSON object, no markdown, no preamble:
 
   function wait(ms) {
     return new Promise((resolve) => {
+      speechWaitResolveRef.current = resolve;
       speechTimeoutRef.current = setTimeout(resolve, ms);
     });
   }
@@ -922,6 +924,10 @@ Respond ONLY with a JSON object, no markdown, no preamble:
       clearTimeout(speechTimeoutRef.current);
       speechTimeoutRef.current = null;
     }
+    if (speechWaitResolveRef.current) {
+      speechWaitResolveRef.current();
+      speechWaitResolveRef.current = null;
+    }
     if (speechAudioRef.current) {
       try {
         speechAudioRef.current.stop();
@@ -1097,8 +1103,11 @@ Respond ONLY with a JSON object, no markdown, no preamble:
     }
     try {
       const saved = decodeFromParam(d);
+      const built = buildMeditation(saved.visualization);
       setGoal(saved.goal);
       setReading(saved.reading);
+      setMeditation(built.fullMeditation);
+      setMeditationParts(built.parts);
       setEmailInput(saved.email || "");
       setNameInput(saved.name || "");
       setStage("reading");
