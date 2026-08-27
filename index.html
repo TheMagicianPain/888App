@@ -518,9 +518,16 @@ function TarotDraw() {
             visualization: meditationParts ? meditationParts.visualization : null,
             reminderHourUTC,
           }),
-        }).catch(() => {
-          // don't block the user's experience if this fails silently
-        });
+        })
+          .then((r) => r.json())
+          .then((data) => {
+            if (data && data.credits !== undefined) {
+              setCredits(data.credits);
+            }
+          })
+          .catch(() => {
+            // don't block the user's experience if this fails silently
+          });
       }
     } catch (e) {
       console.error("Notification permission/subscription failed:", e);
