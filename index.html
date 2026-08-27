@@ -368,8 +368,12 @@ function TarotDraw() {
           }
         } else {
           // Returning from a payment redirect — resume exactly where they were.
-          setStage("meditation");
-          startTone();
+          if (isInstagramBrowser()) {
+            setStage("browser-check");
+          } else {
+            setStage("meditation");
+            startTone();
+          }
         }
       } catch (e) {
         console.error("Failed to restore saved meditation:", e);
@@ -1238,8 +1242,12 @@ Respond ONLY with a JSON object, no markdown, no preamble:
       setNameInput(saved.name || "");
       setSavedCode("saved");
       setUnlocked(true);
-      setStage("meditation");
-      startTone();
+      if (isInstagramBrowser()) {
+        setStage("browser-check");
+      } else {
+        setStage("meditation");
+        startTone();
+      }
       refreshReadStatus(saved.email);
     } catch (e) {
       console.error("Failed to restore saved meditation from hub:", e);
