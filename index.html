@@ -171,13 +171,18 @@ function isAndroid() {
 
 // Some accounts were saved before "reading" became a single string — those
 // still have the old object shape in storage ({archetype, blocking,
-// pathForward, whoYouBecome}). React crashes if you try to render a plain
-// object as a child, which is exactly what caused blank screens for
-// existing users. This normalizes either shape into safe, displayable text.
+// pathForward, whoYouBecome}). A separate bug also caused some accounts to
+// have the whole {reading, visualization} wrapper saved as "reading" itself,
+// double-nesting it. React crashes if you try to render a plain object as a
+// child, which is exactly what caused blank screens. This normalizes any of
+// these shapes into safe, displayable text.
 function readingToDisplayText(reading) {
   if (!reading) return "";
   if (typeof reading === "string") return reading;
   if (typeof reading === "object") {
+    // Double-wrapped shape from the old save-reading bug: {reading: "...", visualization: "..."}
+    if (typeof reading.reading === "string") return reading.reading;
+    // Old pre-rewrite shape: {archetype, blocking, pathForward, whoYouBecome}
     return [reading.archetype, reading.blocking, reading.pathForward, reading.whoYouBecome]
       .filter(Boolean)
       .join("\n\n");
@@ -675,7 +680,7 @@ Respond ONLY with a JSON object, no markdown, no preamble:
             email: emailInput,
             name: nameInput,
             goal,
-            reading: parsed,
+            reading: parsed.reading,
             visualization: parsed.visualization,
             consumeNewMeditationCredit: consumingNewMeditationCredit,
           }),
