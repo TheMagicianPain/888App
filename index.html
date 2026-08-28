@@ -169,6 +169,22 @@ function isAndroid() {
   return /Android/i.test(navigator.userAgent);
 }
 
+// Some accounts were saved before "reading" became a single string — those
+// still have the old object shape in storage ({archetype, blocking,
+// pathForward, whoYouBecome}). React crashes if you try to render a plain
+// object as a child, which is exactly what caused blank screens for
+// existing users. This normalizes either shape into safe, displayable text.
+function readingToDisplayText(reading) {
+  if (!reading) return "";
+  if (typeof reading === "string") return reading;
+  if (typeof reading === "object") {
+    return [reading.archetype, reading.blocking, reading.pathForward, reading.whoYouBecome]
+      .filter(Boolean)
+      .join("\n\n");
+  }
+  return String(reading);
+}
+
 function buildMeditation(visualization) {
   const inductionPre = `Before we begin — make sure you are not operating any machinery, and that you are seated safely in a quiet space.
 
@@ -2220,7 +2236,7 @@ Respond ONLY with a JSON object, no markdown, no preamble:
                     ))}
                   </div>
                 )}
-                <p style={{ color: "#1C1C1E", lineHeight: 1.75, textAlign: "left", marginBottom: "1.6rem" }}>{reading}</p>
+                <p style={{ color: "#1C1C1E", lineHeight: 1.75, textAlign: "left", marginBottom: "1.6rem" }}>{readingToDisplayText(reading)}</p>
                 <button
                   className="glow-btn"
                   onClick={() => (isInstagramBrowser() ? setStage("browser-check") : confirmOathAndSave())}
