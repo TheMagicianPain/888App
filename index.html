@@ -2209,13 +2209,17 @@ Respond ONLY with a JSON object, no markdown, no preamble:
             {reading && !loading && (
               <>
                 <h2 className="cinzel" style={{ fontSize: "1.4rem", marginBottom: "1.2rem" }}>Your Reading</h2>
-                <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap", justifyContent: "center", marginBottom: "1.4rem" }}>
-                  {pairs.map((c, i) => (
-                    <div key={i} style={{ background: "#F2F2F7", borderRadius: 8, padding: "0.5rem 0.8rem" }}>
-                      <div className="cinzel" style={{ fontSize: "0.82rem", color: "#0D9488" }}>{c.n}</div>
-                    </div>
-                  ))}
-                </div>
+                {Array.isArray(pairs) && pairs.length > 0 && (
+                  <div style={{ display: "flex", gap: "0.6rem", flexWrap: "wrap", justifyContent: "center", marginBottom: "1.4rem" }}>
+                    {pairs.map((c, i) => (
+                      c && c.n ? (
+                        <div key={i} style={{ background: "#F2F2F7", borderRadius: 8, padding: "0.5rem 0.8rem" }}>
+                          <div className="cinzel" style={{ fontSize: "0.82rem", color: "#0D9488" }}>{c.n}</div>
+                        </div>
+                      ) : null
+                    ))}
+                  </div>
+                )}
                 <p style={{ color: "#1C1C1E", lineHeight: 1.75, textAlign: "left", marginBottom: "1.6rem" }}>{reading}</p>
                 <button
                   className="glow-btn"
